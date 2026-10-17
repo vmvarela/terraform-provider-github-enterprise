@@ -106,8 +106,8 @@ func (d *teamsDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		resp.Diagnostics.Append(ds...)
 		values = append(values, v)
 	}
-	var ds = resp.Diagnostics
-	data.Teams, ds = types.ListValue(types.ObjectType{AttrTypes: objectTypes}, values)
+	list, ds := types.ListValue(types.ObjectType{AttrTypes: objectTypes}, values)
+	data.Teams = list
 	resp.Diagnostics.Append(ds...)
 	data.ID = data.Enterprise
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
