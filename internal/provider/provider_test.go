@@ -291,7 +291,6 @@ func TestTerraformLifecycle(t *testing.T) {
 	api, base := newAPI(t)
 	checks := resource.ComposeTestCheckFunc(resource.TestCheckResourceAttr("github_enterprise_team.test", "team_id", "42"), resource.TestCheckResourceAttr("github_enterprise_team_membership.test", "user_id", "7"), resource.TestCheckResourceAttr("data.github_enterprise_team_membership.test", "is_member", "true"), resource.TestCheckResourceAttr("data.github_enterprise_teams.test", "teams.#", "1"))
 	initial := config(base, "Platform", "Original description", "", `["org-one"]`)
-	checks = resource.ComposeTestCheckFunc(checks, resource.TestCheckResourceAttr("github_enterprise_team.test", "team_id", "999999")) // Temporary release-gate failure injection.
 	renamed := config(base, "New Platform", "", "", `["org-two"]`)
 	resource.UnitTest(t, resource.TestCase{ProtoV6ProviderFactories: factories, CheckDestroy: func(_ *terraform.State) error {
 		api.mu.Lock()
