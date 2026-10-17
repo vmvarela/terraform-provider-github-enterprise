@@ -32,8 +32,8 @@ func teamDataAttributes() map[string]schema.Attribute {
 
 type teamDataSource struct{ configuredDataSource }
 
-func (d *teamDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_team"
+func (d *teamDataSource) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = resourceTypePrefix + "_team"
 }
 func (d *teamDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	a := teamDataAttributes()
@@ -70,8 +70,8 @@ type teamsModel struct {
 	Teams      types.List   `tfsdk:"teams"`
 }
 
-func (d *teamsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_teams"
+func (d *teamsDataSource) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = resourceTypePrefix + "_teams"
 }
 func (d *teamsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Lists all enterprise teams, following every pagination page.", Attributes: map[string]schema.Attribute{
@@ -123,8 +123,8 @@ type membershipDataModel struct {
 	Member     types.Bool   `tfsdk:"is_member"`
 }
 
-func (d *membershipDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_team_membership"
+func (d *membershipDataSource) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = resourceTypePrefix + "_team_membership"
 }
 func (d *membershipDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Looks up a direct or IdP-managed team membership. Missing memberships produce an error; authorization errors are never reported as non-membership.", Attributes: map[string]schema.Attribute{
@@ -154,8 +154,8 @@ func (d *membershipDataSource) Read(ctx context.Context, req datasource.ReadRequ
 
 type organizationsDataSource struct{ configuredDataSource }
 
-func (d *organizationsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_team_organizations"
+func (d *organizationsDataSource) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = resourceTypePrefix + "_team_organizations"
 }
 func (d *organizationsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Lists all organization assignments for an enterprise team.", Attributes: map[string]schema.Attribute{

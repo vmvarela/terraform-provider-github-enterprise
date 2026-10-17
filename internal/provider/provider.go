@@ -14,6 +14,14 @@ import (
 )
 
 type enterpriseProvider struct{ version string }
+
+// Provider local names cannot contain underscores. Keep the readable resource
+// prefix independent; configurations select this provider explicitly.
+const (
+	providerName       = "github-enterprise"
+	resourceTypePrefix = "github_enterprise"
+)
+
 type providerModel struct {
 	Token      types.String `tfsdk:"token"`
 	BaseURL    types.String `tfsdk:"base_url"`
@@ -25,11 +33,11 @@ func New(version string) func() provider.Provider {
 }
 
 func (p *enterpriseProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName, resp.Version = "githubenterprise", p.version
+	resp.TypeName, resp.Version = providerName, p.version
 }
 
 func (p *enterpriseProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
-	resp.Schema = schema.Schema{MarkdownDescription: "Manages GitHub Enterprise Cloud teams alongside integrations/github.", Attributes: map[string]schema.Attribute{
+	resp.Schema = schema.Schema{MarkdownDescription: "Manages GitHub Enterprise Cloud teams alongside integrations/github. Set `provider = github-enterprise` on every resource and data source to select this provider explicitly.", Attributes: map[string]schema.Attribute{
 		"token":       schema.StringAttribute{Optional: true, Sensitive: true, MarkdownDescription: "Classic PAT or enterprise GitHub App access token. Defaults to GITHUB_ENTERPRISE_TOKEN, then GITHUB_TOKEN. Prefer environment variables to keep credentials out of configuration."},
 		"base_url":    schema.StringAttribute{Optional: true, MarkdownDescription: "API base URL. Defaults to GITHUB_ENTERPRISE_BASE_URL, then https://api.github.com/. Supports dedicated api.SUBDOMAIN.ghe.com endpoints."},
 		"api_version": schema.StringAttribute{Optional: true, MarkdownDescription: "GitHub API version. Defaults to 2026-03-10."},

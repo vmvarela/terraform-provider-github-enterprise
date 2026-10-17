@@ -26,8 +26,8 @@ type membershipModel struct {
 	UserID     types.Int64  `tfsdk:"user_id"`
 }
 
-func (r *membershipResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_team_membership"
+func (r *membershipResource) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = resourceTypePrefix + "_team_membership"
 }
 func (r *membershipResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Manages one direct team membership. Other members are unaffected. Do not use with IdP-managed team memberships.", Attributes: map[string]schema.Attribute{

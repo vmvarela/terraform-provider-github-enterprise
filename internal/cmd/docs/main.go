@@ -37,7 +37,7 @@ func generate() error {
 	}
 	for kind, schemas := range map[string]map[string]*tfprotov6.Schema{"resources": r.ResourceSchemas, "data-sources": r.DataSourceSchemas} {
 		for name, schema := range schemas {
-			short := strings.TrimPrefix(name, "githubenterprise_")
+			short := strings.TrimPrefix(name, "github_enterprise_")
 			base := filepath.Join("examples", kind, short)
 			importText := ""
 			if kind == "resources" {
@@ -86,7 +86,7 @@ func writeDoc(title, path, example string, schema *tfprotov6.Schema, importText 
 		}
 		fmt.Fprintf(&out, "| `%s` | `%s` | %s | %s |\n", a.Name, typ, req, strings.ReplaceAll(a.Description, "|", "\\|"))
 	}
-	if title == "githubenterprise_teams (Data Source)" {
+	if title == "github_enterprise_teams (Data Source)" {
 		fmt.Fprintln(&out, "\nEach team object contains `team_id`, `name`, `slug`, `description`, `group_id`, `organization_selection_type`, and `notification_setting`.")
 	}
 	if importText != "" {

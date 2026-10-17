@@ -1,5 +1,7 @@
-resource "githubenterprise_team_membership" "example" {
+resource "github_enterprise_team_membership" "example" {
+  provider = github-enterprise
+
   enterprise_slug = "my-enterprise"
-  team_id         = githubenterprise_team.example.team_id
+  team_id         = github_enterprise_team.example.team_id
   username        = "octocat"
 }

@@ -8,4 +8,6 @@ Use numeric team identities in relationships. Never trust a slug as immutable id
 
 Keep schemas, examples and Registry documentation consistent. Document ownership (individual or authoritative), import syntax, token permissions and compatibility limits. Do not add resources for reporting alone without a concrete Terraform use case.
 
+The provider name is `github-enterprise`; resource and data source types start with `github_enterprise_`. Examples must explicitly set `provider = github-enterprise` so they work alongside the official `github` provider. Run `make docs` after changing schemas or examples.
+
 Use conventional commit titles (`feat:`, `fix:`, `docs:`, `test:`, `ci:`). Releases are manual version tags; merging a pull request does not publish a release.

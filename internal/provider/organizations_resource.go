@@ -29,8 +29,8 @@ type organizationsModel struct {
 	Organizations types.Set    `tfsdk:"organization_slugs"`
 }
 
-func (r *organizationsResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_team_organizations"
+func (r *organizationsResource) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = resourceTypePrefix + "_team_organizations"
 }
 func (r *organizationsResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Authoritatively manages all organization assignments for a team in selected mode. Omitted organizations are removed. Use only one instance per team; import existing assignments first.", Attributes: map[string]schema.Attribute{

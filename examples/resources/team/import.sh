@@ -1,1 +1,1 @@
-terraform import githubenterprise_team.example my-enterprise/123456
+terraform import github_enterprise_team.example my-enterprise/123456

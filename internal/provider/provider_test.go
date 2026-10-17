@@ -22,7 +22,7 @@ import (
 	"github.com/vmvarela/terraform-provider-github-enterprise/internal/client"
 )
 
-var factories = map[string]func() (tfprotov6.ProviderServer, error){"githubenterprise": providerserver.NewProtocol6WithError(New("test")())}
+var factories = map[string]func() (tfprotov6.ProviderServer, error){"github-enterprise": providerserver.NewProtocol6WithError(New("test")())}
 
 func TestProviderSchema(t *testing.T) {
 	s := providerserver.NewProtocol6(New("test")())()
@@ -224,44 +224,58 @@ func requireTerraform(t *testing.T) {
 }
 func config(base, name, description, group, orgs string) string {
 	return fmt.Sprintf(`
-provider "githubenterprise" {
+provider "github-enterprise" {
  token = "mock-token"
  base_url = %q
 }
-resource "githubenterprise_team" "test" {
+resource "github_enterprise_team" "test" {
+  provider = github-enterprise
+
  enterprise_slug = "acme"
  name = %q
  description = %q
  group_id = %q
  organization_selection_type = "selected"
 }
-resource "githubenterprise_team_membership" "test" {
+resource "github_enterprise_team_membership" "test" {
+  provider = github-enterprise
+
  enterprise_slug = "acme"
- team_id = githubenterprise_team.test.team_id
+ team_id = github_enterprise_team.test.team_id
  username = "octocat"
 }
-resource "githubenterprise_team_organizations" "test" {
+resource "github_enterprise_team_organizations" "test" {
+  provider = github-enterprise
+
  enterprise_slug = "acme"
- team_id = githubenterprise_team.test.team_id
+ team_id = github_enterprise_team.test.team_id
  organization_slugs = %s
 }
-data "githubenterprise_team" "test" {
+data "github_enterprise_team" "test" {
+  provider = github-enterprise
+
  enterprise_slug = "acme"
- slug = githubenterprise_team.test.slug
+ slug = github_enterprise_team.test.slug
 }
-data "githubenterprise_teams" "test" {
+data "github_enterprise_teams" "test" {
+  provider = github-enterprise
+
  enterprise_slug = "acme"
- depends_on = [githubenterprise_team.test]
+ depends_on = [github_enterprise_team.test]
 }
-data "githubenterprise_team_membership" "test" {
+data "github_enterprise_team_membership" "test" {
+  provider = github-enterprise
+
  enterprise_slug = "acme"
- team_id = githubenterprise_team.test.team_id
- username = githubenterprise_team_membership.test.username
+ team_id = github_enterprise_team.test.team_id
+ username = github_enterprise_team_membership.test.username
 }
-data "githubenterprise_team_organizations" "test" {
+data "github_enterprise_team_organizations" "test" {
+  provider = github-enterprise
+
  enterprise_slug = "acme"
- team_id = githubenterprise_team.test.team_id
- depends_on = [githubenterprise_team_organizations.test]
+ team_id = github_enterprise_team.test.team_id
+ depends_on = [github_enterprise_team_organizations.test]
 }
 `, base, name, description, group, orgs)
 }
@@ -269,7 +283,7 @@ data "githubenterprise_team_organizations" "test" {
 func TestTerraformLifecycle(t *testing.T) {
 	requireTerraform(t)
 	api, base := newAPI(t)
-	checks := resource.ComposeTestCheckFunc(resource.TestCheckResourceAttr("githubenterprise_team.test", "team_id", "42"), resource.TestCheckResourceAttr("githubenterprise_team_membership.test", "user_id", "7"), resource.TestCheckResourceAttr("data.githubenterprise_team_membership.test", "is_member", "true"), resource.TestCheckResourceAttr("data.githubenterprise_teams.test", "teams.#", "1"))
+	checks := resource.ComposeTestCheckFunc(resource.TestCheckResourceAttr("github_enterprise_team.test", "team_id", "42"), resource.TestCheckResourceAttr("github_enterprise_team_membership.test", "user_id", "7"), resource.TestCheckResourceAttr("data.github_enterprise_team_membership.test", "is_member", "true"), resource.TestCheckResourceAttr("data.github_enterprise_teams.test", "teams.#", "1"))
 	initial := config(base, "Platform", "Original description", "", `["org-one"]`)
 	renamed := config(base, "New Platform", "", "", `["org-two"]`)
 	resource.UnitTest(t, resource.TestCase{ProtoV6ProviderFactories: factories, CheckDestroy: func(_ *terraform.State) error {
@@ -281,10 +295,10 @@ func TestTerraformLifecycle(t *testing.T) {
 		return nil
 	}, Steps: []resource.TestStep{
 		{Config: initial, Check: checks},
-		{ResourceName: "githubenterprise_team.test", ImportState: true, ImportStateVerify: true},
-		{ResourceName: "githubenterprise_team_membership.test", ImportState: true, ImportStateVerify: true},
-		{ResourceName: "githubenterprise_team_organizations.test", ImportState: true, ImportStateVerify: true},
-		{Config: renamed, Check: resource.ComposeTestCheckFunc(checks, resource.TestCheckResourceAttr("githubenterprise_team.test", "slug", "ent:new-platform"), resource.TestCheckResourceAttr("githubenterprise_team.test", "description", ""))},
+		{ResourceName: "github_enterprise_team.test", ImportState: true, ImportStateVerify: true},
+		{ResourceName: "github_enterprise_team_membership.test", ImportState: true, ImportStateVerify: true},
+		{ResourceName: "github_enterprise_team_organizations.test", ImportState: true, ImportStateVerify: true},
+		{Config: renamed, Check: resource.ComposeTestCheckFunc(checks, resource.TestCheckResourceAttr("github_enterprise_team.test", "slug", "ent:new-platform"), resource.TestCheckResourceAttr("github_enterprise_team.test", "description", ""))},
 		{Config: renamed, PreConfig: func() {
 			api.mu.Lock()
 			defer api.mu.Unlock()
@@ -293,8 +307,8 @@ func TestTerraformLifecycle(t *testing.T) {
 			}
 			api.orgs["external-org"] = true
 			delete(api.members, "octocat")
-		}, Check: resource.TestCheckResourceAttr("githubenterprise_team_organizations.test", "organization_slugs.#", "1")},
-		{Config: config(base, "New Platform", "", "", `[]`), Check: resource.TestCheckResourceAttr("githubenterprise_team_organizations.test", "organization_slugs.#", "0")},
+		}, Check: resource.TestCheckResourceAttr("github_enterprise_team_organizations.test", "organization_slugs.#", "1")},
+		{Config: config(base, "New Platform", "", "", `[]`), Check: resource.TestCheckResourceAttr("github_enterprise_team_organizations.test", "organization_slugs.#", "0")},
 	}})
 }
 
@@ -308,7 +322,7 @@ func TestTerraformOutOfBandRename(t *testing.T) {
 			defer api.mu.Unlock()
 			api.team.Name = "Renamed elsewhere"
 			api.team.Slug = "ent:renamed-elsewhere"
-		}, Check: resource.TestCheckResourceAttr("githubenterprise_team.test", "slug", "ent:platform")},
+		}, Check: resource.TestCheckResourceAttr("github_enterprise_team.test", "slug", "ent:platform")},
 	}})
 }
 
@@ -316,11 +330,13 @@ func TestTerraformGroupUnlink(t *testing.T) {
 	requireTerraform(t)
 	api, base := newAPI(t)
 	teamConfig := func(group string) string {
-		return fmt.Sprintf(`provider "githubenterprise" {
+		return fmt.Sprintf(`provider "github-enterprise" {
  token="mock-token"
 base_url=%q
 }
-resource "githubenterprise_team" "test" {
+resource "github_enterprise_team" "test" {
+  provider = github-enterprise
+
  enterprise_slug="acme"
 name="Platform"
 %s
@@ -344,11 +360,13 @@ func TestTerraformRefusesToOverwriteOrganizations(t *testing.T) {
 	api, base := newAPI(t)
 	api.team = &client.Team{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: "selected", NotificationSetting: "notifications_enabled"}
 	api.orgs["existing-org"] = true
-	cfg := fmt.Sprintf(`provider "githubenterprise" {
+	cfg := fmt.Sprintf(`provider "github-enterprise" {
  token="mock-token"
 base_url=%q
 }
-resource "githubenterprise_team_organizations" "test" {
+resource "github_enterprise_team_organizations" "test" {
+  provider = github-enterprise
+
  enterprise_slug="acme"
 team_id=42
 organization_slugs=["org-one"]
@@ -386,8 +404,10 @@ func TestAccTeam(t *testing.T) {
 	}
 	name := "tf-acc-" + acctest.RandStringFromCharSet(10, acctest.CharSetAlphaNum)
 	cfg := func(n, desc string) string {
-		return fmt.Sprintf(`provider "githubenterprise" {}
-resource "githubenterprise_team" "test" {
+		return fmt.Sprintf(`provider "github-enterprise" {}
+resource "github_enterprise_team" "test" {
+  provider = github-enterprise
+
  enterprise_slug=%q
 name=%q
 description=%q
@@ -395,7 +415,7 @@ description=%q
 	}
 	resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: factories, Steps: []resource.TestStep{
 		{Config: cfg(name, "Acceptance test")},
-		{ResourceName: "githubenterprise_team.test", ImportState: true, ImportStateVerify: true},
+		{ResourceName: "github_enterprise_team.test", ImportState: true, ImportStateVerify: true},
 		{Config: cfg(name+"-renamed", "")},
 	}})
 }

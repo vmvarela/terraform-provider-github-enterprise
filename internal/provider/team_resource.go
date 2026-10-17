@@ -31,8 +31,8 @@ type teamModel struct {
 	Notifications types.String `tfsdk:"notification_setting"`
 }
 
-func (r *teamResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_team"
+func (r *teamResource) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = resourceTypePrefix + "_team"
 }
 func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Manages a GitHub Enterprise Cloud team. Numeric identity is preserved across renames.", Attributes: map[string]schema.Attribute{

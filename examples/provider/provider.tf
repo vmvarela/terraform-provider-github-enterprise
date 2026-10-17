@@ -1,9 +1,9 @@
 terraform {
   required_providers {
-    githubenterprise = {
+    github-enterprise = {
       source = "vmvarela/github-enterprise"
     }
   }
 }
 
-provider "githubenterprise" {}
+provider "github-enterprise" {}
