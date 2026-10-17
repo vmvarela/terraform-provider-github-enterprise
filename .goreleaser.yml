@@ -1,5 +1,8 @@
 version: 2
 project_name: terraform-provider-github-enterprise
+snapshot:
+  # Packed filesystem mirrors normalize filenames to lowercase.
+  version_template: '{{ .Version }}-snapshot-{{ .ShortCommit }}'
 builds:
   - env:
       - CGO_ENABLED=0
