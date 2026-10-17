@@ -30,8 +30,8 @@ data "github_enterprise_team" "example" {
 | `group_id` | `String` | Read-only | Linked IdP group ID, or an empty string. |
 | `id` | `String` | Read-only | enterprise_slug/team_id. |
 | `name` | `String` | Read-only | Team name. |
-| `notification_setting` | `String` | Read-only | Mention notification mode. |
-| `organization_selection_type` | `String` | Read-only | Organization selection mode. |
+| `notification_setting` | `String` | Read-only | Mention notification mode, or null when GitHub omits it. |
+| `organization_selection_type` | `String` | Read-only | Organization selection mode, or null when GitHub omits it. |
 | `slug` | `String` | Required | Team slug returned by GitHub, including ent: when present. |
 | `team_id` | `Number` | Read-only | Numeric team ID. |
 

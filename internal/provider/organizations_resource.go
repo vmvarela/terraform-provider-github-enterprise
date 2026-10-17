@@ -33,7 +33,7 @@ func (r *organizationsResource) Metadata(_ context.Context, _ resource.MetadataR
 	resp.TypeName = resourceTypePrefix + "_team_organizations"
 }
 func (r *organizationsResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{MarkdownDescription: "Authoritatively manages all organization assignments for a team in selected mode. Omitted organizations are removed. Use only one instance per team; import existing assignments first.", Attributes: map[string]schema.Attribute{
+	resp.Schema = schema.Schema{MarkdownDescription: "Authoritatively manages all organization assignments for a team in selected mode. Omitted organizations are removed. Use only one instance per team; import existing assignments first. Creation and updates require GitHub to return organization_selection_type so selected mode can be verified.", Attributes: map[string]schema.Attribute{
 		"id":                 schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug/team_id.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		"enterprise_slug":    schema.StringAttribute{Required: true, MarkdownDescription: "Enterprise account slug.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"team_id":            schema.Int64Attribute{Required: true, MarkdownDescription: "Numeric team ID.", Validators: []validator.Int64{positiveID{}}, PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()}},
@@ -103,8 +103,11 @@ func (r *organizationsResource) selectedTeam(ctx context.Context, data organizat
 	if err != nil {
 		return err
 	}
-	if t.OrganizationSelectionType != "selected" {
-		return fmt.Errorf("team %d must have organization_selection_type = selected; current mode is %q", t.ID, t.OrganizationSelectionType)
+	if t.OrganizationSelectionType == nil {
+		return fmt.Errorf("GitHub did not return organization_selection_type for team %d; cannot safely manage assignments without verifying selected mode", t.ID)
+	}
+	if *t.OrganizationSelectionType != "selected" {
+		return fmt.Errorf("team %d must have organization_selection_type = selected; current mode is %q", t.ID, *t.OrganizationSelectionType)
 	}
 	return nil
 }

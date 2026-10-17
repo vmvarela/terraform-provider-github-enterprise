@@ -24,13 +24,13 @@ type Client struct {
 }
 
 type Team struct {
-	ID                        int64  `json:"id"`
-	Name                      string `json:"name"`
-	Slug                      string `json:"slug"`
-	Description               string `json:"description"`
-	GroupID                   string `json:"group_id"`
-	OrganizationSelectionType string `json:"organization_selection_type"`
-	NotificationSetting       string `json:"notification_setting"`
+	ID                        int64   `json:"id"`
+	Name                      string  `json:"name"`
+	Slug                      string  `json:"slug"`
+	Description               string  `json:"description"`
+	GroupID                   string  `json:"group_id"`
+	OrganizationSelectionType *string `json:"organization_selection_type"`
+	NotificationSetting       *string `json:"notification_setting"`
 }
 
 type User struct {
@@ -227,6 +227,13 @@ func (c *Client) FindTeam(ctx context.Context, enterprise string, id int64, slug
 			continue
 		}
 		team, err := c.TeamBySlug(ctx, enterprise, t.Slug)
+		if IsNotFound(err) {
+			// A positive ID match followed by a disappearing slug is inconclusive:
+			// the team may have been renamed again. Do not expose this 404 as a
+			// missing team (including through error unwrapping), which would cause
+			// callers to drop state or report a successful deletion.
+			return nil, fmt.Errorf("enterprise team %d was listed but its slug could not be resolved; retry the operation", id)
+		}
 		if err != nil {
 			return nil, err
 		}

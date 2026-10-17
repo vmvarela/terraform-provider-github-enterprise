@@ -185,3 +185,56 @@ func TestClientValidation(t *testing.T) {
 		t.Fatal("accepted invalid API version")
 	}
 }
+
+func TestFindTeamListedSlugFailureIsInconclusive(t *testing.T) {
+	for _, status := range []int{404, 403, 500} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/enterprises/acme/teams":
+					fmt.Fprint(w, `[{"id":42,"slug":"ent:intermediate"}]`)
+				default:
+					w.WriteHeader(status)
+				}
+			})
+			_, err := c.FindTeam(context.Background(), "acme", 42, "")
+			if err == nil || IsNotFound(err) {
+				t.Fatalf("positive ID lookup must not become conclusive absence: %v", err)
+			}
+			if status == 404 && !strings.Contains(err.Error(), "retry") {
+				t.Fatalf("expected actionable retry diagnostic: %v", err)
+			}
+			if status != 404 && !strings.Contains(err.Error(), fmt.Sprintf("HTTP %d", status)) {
+				t.Fatalf("lost original API failure: %v", err)
+			}
+		})
+	}
+}
+
+func TestTeamSettingPresence(t *testing.T) {
+	for _, tc := range []struct {
+		name, fields string
+		present      bool
+	}{
+		{"omitted", "", false},
+		{"null", `,"organization_selection_type":null,"notification_setting":null`, false},
+		{"explicit", `,"organization_selection_type":"selected","notification_setting":"notifications_disabled"`, true},
+		{"empty", `,"organization_selection_type":"","notification_setting":""`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var team Team
+			if err := json.Unmarshal([]byte(`{"id":42,"slug":"ent:platform"`+tc.fields+`}`), &team); err != nil {
+				t.Fatal(err)
+			}
+			if (team.OrganizationSelectionType != nil) != tc.present || (team.NotificationSetting != nil) != tc.present {
+				t.Fatalf("lost field presence: %+v", team)
+			}
+			if tc.name == "explicit" && (*team.OrganizationSelectionType != "selected" || *team.NotificationSetting != "notifications_disabled") {
+				t.Fatalf("lost observed settings: %+v", team)
+			}
+			if tc.name == "empty" && (*team.OrganizationSelectionType != "" || *team.NotificationSetting != "") {
+				t.Fatalf("empty values were rewritten: %+v", team)
+			}
+		})
+	}
+}

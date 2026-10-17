@@ -13,7 +13,7 @@ import (
 func TestPartialOrganizationUpdateRetainsObservedState(t *testing.T) {
 	ctx := context.Background()
 	api, base := newAPI(t)
-	api.team = &client.Team{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: "selected"}
+	api.team = &client.Team{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: new("selected")}
 	api.orgs["org-one"] = true
 	api.failRemoval = true
 	c, err := client.New(base, "mock-token", client.DefaultAPIVersion)

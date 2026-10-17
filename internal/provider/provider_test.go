@@ -151,7 +151,7 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	if parts[1] == "organizations" {
 		if len(parts) == 3 && r.Method == "POST" {
-			if a.team.OrganizationSelectionType != "selected" {
+			if a.team.OrganizationSelectionType == nil || *a.team.OrganizationSelectionType != "selected" {
 				http.Error(w, "mode", 422)
 				return
 			}
@@ -202,10 +202,10 @@ func (a *enterpriseAPI) updateTeam(r *http.Request) {
 		a.team.Description = v
 	}
 	if v, ok := body["organization_selection_type"].(string); ok {
-		a.team.OrganizationSelectionType = v
+		a.team.OrganizationSelectionType = new(v)
 	}
 	if v, ok := body["notification_setting"].(string); ok {
-		a.team.NotificationSetting = v
+		a.team.NotificationSetting = new(v)
 	}
 	if v, ok := body["group_id"]; ok {
 		a.team.GroupID = ""
@@ -358,7 +358,7 @@ name="Platform"
 func TestTerraformRefusesToOverwriteOrganizations(t *testing.T) {
 	requireTerraform(t)
 	api, base := newAPI(t)
-	api.team = &client.Team{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: "selected", NotificationSetting: "notifications_enabled"}
+	api.team = &client.Team{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: new("selected"), NotificationSetting: new("notifications_enabled")}
 	api.orgs["existing-org"] = true
 	cfg := fmt.Sprintf(`provider "github-enterprise" {
  token="mock-token"

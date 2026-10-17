@@ -25,8 +25,8 @@ func teamDataAttributes() map[string]schema.Attribute {
 		"slug":                        schema.StringAttribute{Computed: true, MarkdownDescription: "GitHub-generated slug."},
 		"description":                 schema.StringAttribute{Computed: true, MarkdownDescription: "Team description."},
 		"group_id":                    schema.StringAttribute{Computed: true, MarkdownDescription: "Linked IdP group ID, or an empty string."},
-		"organization_selection_type": schema.StringAttribute{Computed: true, MarkdownDescription: "Organization selection mode."},
-		"notification_setting":        schema.StringAttribute{Computed: true, MarkdownDescription: "Mention notification mode."},
+		"organization_selection_type": schema.StringAttribute{Computed: true, MarkdownDescription: "Organization selection mode, or null when GitHub omits it."},
+		"notification_setting":        schema.StringAttribute{Computed: true, MarkdownDescription: "Mention notification mode, or null when GitHub omits it."},
 	}
 }
 
@@ -74,7 +74,7 @@ func (d *teamsDataSource) Metadata(_ context.Context, _ datasource.MetadataReque
 	resp.TypeName = resourceTypePrefix + "_teams"
 }
 func (d *teamsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
-	resp.Schema = schema.Schema{MarkdownDescription: "Lists all enterprise teams, following every pagination page.", Attributes: map[string]schema.Attribute{
+	resp.Schema = schema.Schema{MarkdownDescription: "Lists all enterprise teams, following every pagination page. Missing organization selection and notification settings are returned as null.", Attributes: map[string]schema.Attribute{
 		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "Enterprise slug."},
 		"enterprise_slug": enterpriseDataAttribute(),
 		"teams":           schema.ListNestedAttribute{Computed: true, MarkdownDescription: "Enterprise teams in API order.", NestedObject: schema.NestedAttributeObject{Attributes: teamDataAttributes()}},
@@ -94,15 +94,8 @@ func (d *teamsDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	objectTypes := map[string]attr.Type{"team_id": types.Int64Type, "name": types.StringType, "slug": types.StringType, "description": types.StringType, "group_id": types.StringType, "organization_selection_type": types.StringType, "notification_setting": types.StringType}
 	values := make([]attr.Value, 0, len(teams))
 	for _, t := range teams {
-		selection := t.OrganizationSelectionType
-		if selection == "" {
-			selection = "disabled"
-		}
-		notifications := t.NotificationSetting
-		if notifications == "" {
-			notifications = "notifications_enabled"
-		}
-		v, ds := types.ObjectValue(objectTypes, map[string]attr.Value{"team_id": types.Int64Value(t.ID), "name": types.StringValue(t.Name), "slug": types.StringValue(t.Slug), "description": types.StringValue(t.Description), "group_id": types.StringValue(t.GroupID), "organization_selection_type": types.StringValue(selection), "notification_setting": types.StringValue(notifications)})
+
+		v, ds := types.ObjectValue(objectTypes, map[string]attr.Value{"team_id": types.Int64Value(t.ID), "name": types.StringValue(t.Name), "slug": types.StringValue(t.Slug), "description": types.StringValue(t.Description), "group_id": types.StringValue(t.GroupID), "organization_selection_type": types.StringPointerValue(t.OrganizationSelectionType), "notification_setting": types.StringPointerValue(t.NotificationSetting)})
 		resp.Diagnostics.Append(ds...)
 		values = append(values, v)
 	}

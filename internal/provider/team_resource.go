@@ -35,7 +35,7 @@ func (r *teamResource) Metadata(_ context.Context, _ resource.MetadataRequest, r
 	resp.TypeName = resourceTypePrefix + "_team"
 }
 func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{MarkdownDescription: "Manages a GitHub Enterprise Cloud team. Numeric identity is preserved across renames.", Attributes: map[string]schema.Attribute{
+	resp.Schema = schema.Schema{MarkdownDescription: "Manages a GitHub Enterprise Cloud team. Numeric identity is preserved across renames. Refresh and import fail without changing state if GitHub omits organization_selection_type or notification_setting; creation defaults are never treated as observed API values.", Attributes: map[string]schema.Attribute{
 		"id":                          schema.StringAttribute{Computed: true, MarkdownDescription: "Stable identity: enterprise_slug/team_id.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		"enterprise_slug":             schema.StringAttribute{Required: true, MarkdownDescription: "Enterprise account slug.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"team_id":                     schema.Int64Attribute{Computed: true, MarkdownDescription: "Stable numeric team ID. Use this in membership and organization assignment resources.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
@@ -58,16 +58,8 @@ func (m *teamModel) refresh(t *client.Team) {
 	m.Name = types.StringValue(t.Name)
 	m.Description = types.StringValue(t.Description)
 	m.GroupID = types.StringValue(t.GroupID)
-	selection := t.OrganizationSelectionType
-	if selection == "" {
-		selection = "disabled"
-	}
-	m.Selection = types.StringValue(selection)
-	notifications := t.NotificationSetting
-	if notifications == "" {
-		notifications = "notifications_enabled"
-	}
-	m.Notifications = types.StringValue(notifications)
+	m.Selection = types.StringPointerValue(t.OrganizationSelectionType)
+	m.Notifications = types.StringPointerValue(t.NotificationSetting)
 }
 func (m teamModel) body() map[string]any {
 	body := map[string]any{"name": m.Name.ValueString(), "description": m.Description.ValueString(), "organization_selection_type": m.Selection.ValueString(), "notification_setting": m.Notifications.ValueString()}
@@ -104,6 +96,10 @@ func (r *teamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	}
 	if err != nil {
 		resp.Diagnostics.AddError("Read enterprise team", err.Error())
+		return
+	}
+	if t.OrganizationSelectionType == nil || t.NotificationSetting == nil {
+		resp.Diagnostics.AddError("Incomplete enterprise team response", "GitHub did not return organization_selection_type or notification_setting. The team cannot be safely refreshed or imported without these settings. Existing state has been retained; verify API permissions and compatibility before retrying.")
 		return
 	}
 	data.refresh(t)
