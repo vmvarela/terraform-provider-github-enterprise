@@ -1,0 +1,40 @@
+version: 2
+builds:
+  - env:
+      - CGO_ENABLED=0
+    binary: '{{ .ProjectName }}_v{{ .Version }}'
+    flags: [-trimpath]
+    ldflags:
+      - '-s -w -X main.version={{ .Version }}'
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+archives:
+  - formats: [zip]
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+checksum:
+  name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
+  algorithm: sha256
+  extra_files:
+    - glob: terraform-registry-manifest.json
+      name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
+signs:
+  - cmd: gpg
+    args:
+      - --batch
+      - --pinentry-mode
+      - loopback
+      - --passphrase-file
+      - '{{ .Env.GPG_PASSPHRASE_FILE }}'
+      - --local-user
+      - '{{ .Env.GPG_FINGERPRINT }}'
+      - --output
+      - '${signature}'
+      - --detach-sign
+      - '${artifact}'
+    artifacts: checksum
+release:
+  extra_files:
+    - glob: terraform-registry-manifest.json
+      name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
+changelog:
+  sort: asc

@@ -1,0 +1,52 @@
+name: CI
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+      - name: Format, vet and race tests (including Terraform integration)
+        run: make check
+      - name: Verify module metadata
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+      - name: Verify generated documentation
+        run: |
+          make docs
+          git diff --exit-code -- docs
+      - run: make build
+      - run: terraform fmt -check -recursive examples
+  opentofu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+      - uses: opentofu/setup-opentofu@9d84900f3238fab8cd84ce47d658d25dd008be2f # v1
+        with:
+          tofu_version: 1.11.0
+          tofu_wrapper: false
+      - name: Exercise provider through OpenTofu
+        env:
+          # The Terraform test harness otherwise registers a legacy '-' address
+          # under registry.terraform.io, which OpenTofu correctly rejects.
+          TF_ACC_PROVIDER_HOST: registry.opentofu.org
+          TF_ACC_PROVIDER_NAMESPACE: hashicorp
+        run: |
+          export TF_ACC_TERRAFORM_PATH="$(command -v tofu)"
+          go test ./internal/provider -run '^TestTerraform' -v

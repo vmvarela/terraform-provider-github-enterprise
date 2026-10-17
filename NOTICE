@@ -1,0 +1,10 @@
+This independent provider is developed by Victor Varela.
+
+Its initial feature scope and lifecycle safeguards are informed by:
+https://github.com/integrations/terraform-provider-github/pull/3008
+
+The upstream Terraform GitHub provider is distributed under the MIT License:
+Copyright (c) 2020 GitHub.
+
+GitHub and Terraform are trademarks of their respective owners. This project
+does not imply endorsement by GitHub or HashiCorp.

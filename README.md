@@ -8,11 +8,11 @@ A focused Terraform and OpenTofu provider for GitHub Enterprise Cloud administra
 
 | Area | Resources | Data sources |
 | --- | --- | --- |
-| Enterprise teams | `githubenterprise_team` | `githubenterprise_team`, `githubenterprise_teams` |
-| Direct membership | `githubenterprise_team_membership` | `githubenterprise_team_membership` |
-| Organization assignments | `githubenterprise_team_organizations` | `githubenterprise_team_organizations` |
+| Enterprise teams | `github_enterprise_team` | `github_enterprise_team`, `github_enterprise_teams` |
+| Direct membership | `github_enterprise_team_membership` | `github_enterprise_team_membership` |
+| Organization assignments | `github_enterprise_team_organizations` | `github_enterprise_team_organizations` |
 
-All relations use a numeric `team_id`, which survives team renames. Team reads verify numeric identity before trusting a stored slug, including when someone reuses an old slug for a different team.
+All relations use a numeric `team_id`, which survives team renames. Team reads verify numeric identity before trusting a stored slug, including when someone reuses an old slug for a different team. If a team appears in the ID lookup but its slug disappears before the detail request, the operation fails and retains state so it can be retried.
 
 Future work: enterprise cost centers, read-only SCIM lookups, and selected billing data sources. Existing enterprise functionality in `integrations/github` stays there. No GitHub Enterprise Server compatibility is claimed in this initial version.
 
@@ -26,35 +26,41 @@ terraform {
     github = {
       source = "integrations/github"
     }
-    githubenterprise = {
+    github-enterprise = {
       source = "vmvarela/github-enterprise"
     }
   }
 }
 
-provider "githubenterprise" {}
+provider "github-enterprise" {}
 
-resource "githubenterprise_team" "platform" {
+resource "github_enterprise_team" "platform" {
+  provider = github-enterprise
+
   enterprise_slug             = "my-enterprise"
   name                        = "Platform"
   description                 = "Platform Engineering"
   organization_selection_type = "selected"
 }
 
-resource "githubenterprise_team_membership" "member" {
+resource "github_enterprise_team_membership" "member" {
+  provider = github-enterprise
+
   enterprise_slug = "my-enterprise"
-  team_id         = githubenterprise_team.platform.team_id
+  team_id         = github_enterprise_team.platform.team_id
   username        = "octocat"
 }
 
-resource "githubenterprise_team_organizations" "platform" {
+resource "github_enterprise_team_organizations" "platform" {
+  provider = github-enterprise
+
   enterprise_slug    = "my-enterprise"
-  team_id            = githubenterprise_team.platform.team_id
+  team_id            = github_enterprise_team.platform.team_id
   organization_slugs = ["my-organization"]
 }
 ```
 
-`githubenterprise` is the local provider name and resource prefix. The distribution name is `github-enterprise`. Set the local name explicitly as above.
+`github-enterprise` is the local provider name and distribution name. Resource and data source types use the readable `github_enterprise_` prefix. Set `provider = github-enterprise` on every resource and data source: otherwise Terraform infers `github` from the type name and selects the official provider. Configure the local name explicitly as above.
 
 ## Authentication
 
@@ -74,7 +80,7 @@ GitHub's endpoint-specific token tables and [Enterprise Teams GA announcement](h
 For Enterprise Cloud with data residency:
 
 ```hcl
-provider "githubenterprise" {
+provider "github-enterprise" {
   base_url = "https://api.YOUR-SUBDOMAIN.ghe.com/"
 }
 ```
@@ -83,6 +89,7 @@ provider "githubenterprise" {
 
 ## Ownership and lifecycle
 
+- Team refresh and import require GitHub to return `organization_selection_type` and `notification_setting`. If either is absent, refresh fails and retains state. The team data sources return `null` for omitted settings. Creation defaults apply to requests only; they are never substituted for missing API values. Organization assignment creation and updates also fail if GitHub omits the selection mode, because `selected` cannot be verified.
 - Membership resources manage one direct member and leave other members alone. Let the IdP control membership of an IdP-linked team; use the membership data source for reads.
 - `team_organizations` owns the **entire** assignment set. Omitted organizations are removed. An empty set removes all assignments. Use one instance per team, with `organization_selection_type = "selected"`.
 - Existing assignments must be imported before managing them. Destroying `team_organizations` removes every current assignment, including ones added outside Terraform.
@@ -94,21 +101,22 @@ provider "githubenterprise" {
 ## Import and migration
 
 ```sh
-terraform import githubenterprise_team.platform my-enterprise/123456
-terraform import githubenterprise_team_membership.member my-enterprise/123456/octocat
-terraform import githubenterprise_team_organizations.platform my-enterprise/123456
+terraform import github_enterprise_team.platform my-enterprise/123456
+terraform import github_enterprise_team_membership.member my-enterprise/123456/octocat
+terraform import github_enterprise_team_organizations.platform my-enterprise/123456
 ```
 
 When moving from the author's `vmvarela/github` fork, create matching configuration here and import the existing objects into these resources. Compare a plan, then remove the old resource bindings **without destroying the remote objects**. Use `removed` blocks with `destroy = false` where supported, or carefully use `terraform state rm` with a state backup. Do not apply while both providers manage the same object. Renamed resource types and schemas mean `state replace-provider` alone is insufficient.
 
 ## Development
 
-Requires Go 1.26.6 or newer. Terraform 1.5+ is the initial target; CI validates Terraform 1.14.3 and OpenTofu separately. Only report compatibility for versions covered by passing checks.
+Requires Go 1.26.6 or newer. CI tests Terraform 1.14.3 and OpenTofu 1.11.0. Other CLI versions have not been validated.
 
 ```sh
 make build
 make test
 make integration  # Terraform must be on PATH, or set TF_ACC_TERRAFORM_PATH
+make docs         # Regenerate Registry documentation from schemas and examples
 ```
 
 For a local binary, add the absolute path to `bin` in a dedicated CLI configuration:
