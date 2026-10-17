@@ -316,9 +316,12 @@ func TestTerraformGroupUnlink(t *testing.T) {
 	requireTerraform(t)
 	api, base := newAPI(t)
 	teamConfig := func(group string) string {
-		return fmt.Sprintf(`provider "githubenterprise" { token="mock-token" 
-base_url=%q }
-resource "githubenterprise_team" "test" { enterprise_slug="acme"
+		return fmt.Sprintf(`provider "githubenterprise" {
+ token="mock-token" 
+base_url=%q
+}
+resource "githubenterprise_team" "test" {
+ enterprise_slug="acme"
 name="Platform"
 %s
 }`, base, group)
@@ -341,9 +344,12 @@ func TestTerraformRefusesToOverwriteOrganizations(t *testing.T) {
 	api, base := newAPI(t)
 	api.team = &client.Team{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: "selected", NotificationSetting: "notifications_enabled"}
 	api.orgs["existing-org"] = true
-	cfg := fmt.Sprintf(`provider "githubenterprise" { token="mock-token"
-base_url=%q }
-resource "githubenterprise_team_organizations" "test" { enterprise_slug="acme"
+	cfg := fmt.Sprintf(`provider "githubenterprise" {
+ token="mock-token"
+base_url=%q
+}
+resource "githubenterprise_team_organizations" "test" {
+ enterprise_slug="acme"
 team_id=42
 organization_slugs=["org-one"]
 }`, base)
@@ -381,7 +387,8 @@ func TestAccTeam(t *testing.T) {
 	name := "tf-acc-" + acctest.RandStringFromCharSet(10, acctest.CharSetAlphaNum)
 	cfg := func(n, desc string) string {
 		return fmt.Sprintf(`provider "githubenterprise" {}
-resource "githubenterprise_team" "test" { enterprise_slug=%q
+resource "githubenterprise_team" "test" {
+ enterprise_slug=%q
 name=%q
 description=%q
 }`, enterprise, n, desc)

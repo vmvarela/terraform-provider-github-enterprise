@@ -7,6 +7,7 @@ test:
 	go test ./...
 
 integration:
+	test -n "$$TF_ACC_TERRAFORM_PATH" || command -v terraform >/dev/null
 	go test ./internal/provider -run '^TestTerraform' -count=1 -v
 
 docs:

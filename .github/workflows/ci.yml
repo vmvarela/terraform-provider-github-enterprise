@@ -42,6 +42,11 @@ jobs:
           tofu_version: 1.11.0
           tofu_wrapper: false
       - name: Exercise provider through OpenTofu
+        env:
+          # The Terraform test harness otherwise registers a legacy '-' address
+          # under registry.terraform.io, which OpenTofu correctly rejects.
+          TF_ACC_PROVIDER_HOST: registry.opentofu.org
+          TF_ACC_PROVIDER_NAMESPACE: hashicorp
         run: |
           export TF_ACC_TERRAFORM_PATH="$(command -v tofu)"
           go test ./internal/provider -run '^TestTerraform' -v
