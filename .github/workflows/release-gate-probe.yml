@@ -1,0 +1,26 @@
+name: Release gate failure probe
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  validate:
+    uses: ./.github/workflows/ci.yml
+  publication-sentinel:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 1 # Must never run after a lifecycle failure; no publishing credentials.
+  assert-blocked:
+    if: always()
+    needs: [validate, publication-sentinel]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify failure blocks the publishing dependency
+        env:
+          VALIDATION: ${{ needs.validate.result }}
+          PUBLICATION: ${{ needs.publication-sentinel.result }}
+        run: |
+          test "$VALIDATION" = failure
+          test "$PUBLICATION" = skipped
+          echo 'A failing lifecycle test blocked the publication sentinel.'
