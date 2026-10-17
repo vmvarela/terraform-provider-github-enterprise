@@ -70,7 +70,7 @@ export GITHUB_ENTERPRISE_TOKEN='...'
 
 The provider reads `GITHUB_ENTERPRISE_TOKEN`, falling back to `GITHUB_TOKEN`. An explicit sensitive `token` provider argument takes precedence. Credentials are never logged by the HTTP client.
 
-Supported token flows:
+Intended token flows (live acceptance validation is still required):
 
 - Classic PAT: `read:enterprise` for reads, `admin:enterprise` for writes, held by a user with the required enterprise role.
 - GitHub App installed on the enterprise: supply its access token with **Enterprise teams: read** or **write**, as appropriate. The provider accepts an already-issued token; minting and refreshing installation tokens are the caller's responsibility.
@@ -142,6 +142,10 @@ TF_ACC=1 GITHUB_ENTERPRISE_SLUG=my-test-enterprise \
 These tests create and delete a uniquely named test team. They are never run against real enterprises by pull-request CI.
 
 ## Releases
+
+The [initial contract](guides/initial-contract.md) defines compatibility, imports and the deprecation policy when the official provider gains an equivalent feature. See the [complete coexistence example](examples/complete) and [release validation guide](guides/releases.md).
+
+Every release runs the reusable CI workflow against the tagged commit before publication. CI also builds a snapshot with a disposable signing key, verifies its archives and signature, and installs the packaged provider with both Terraform and OpenTofu.
 
 The tag-triggered release workflow builds signed Terraform-compatible archives using GoReleaser. Before tagging a release, configure `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE`, and `GPG_FINGERPRINT`, register the public signing key, and publish the provider through the Terraform Registry UI. Registry registration and signing credentials are not configured by the initial implementation. OpenTofu Registry registration is a separate follow-up.
 

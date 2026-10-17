@@ -1,4 +1,4 @@
-.PHONY: build test integration check fmt docs
+.PHONY: build test integration check fmt docs package-check
 
 build:
 	go build -trimpath -o bin/terraform-provider-github-enterprise .
@@ -8,7 +8,7 @@ test:
 
 integration:
 	test -n "$$TF_ACC_TERRAFORM_PATH" || command -v terraform >/dev/null
-	go test ./internal/provider -run '^TestTerraform' -count=1 -v
+	TF_REQUIRE_CLI=1 go test ./internal/provider -run '^TestTerraform' -count=1 -v
 
 docs:
 	go run ./internal/cmd/docs
@@ -20,3 +20,7 @@ check:
 
 fmt:
 	gofmt -w .
+
+package-check:
+	python3 -m unittest discover -s scripts -p 'test_*.py'
+	bash scripts/package-check.sh

@@ -1,4 +1,5 @@
 version: 2
+project_name: terraform-provider-github-enterprise
 builds:
   - env:
       - CGO_ENABLED=0
@@ -33,6 +34,7 @@ signs:
       - '${artifact}'
     artifacts: checksum
 release:
+  prerelease: auto
   extra_files:
     - glob: terraform-registry-manifest.json
       name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
