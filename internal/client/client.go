@@ -73,8 +73,13 @@ func New(baseURL, token, version string) (*Client, error) {
 	if u.Scheme == "http" && u.Hostname() != "localhost" && u.Hostname() != "127.0.0.1" && u.Hostname() != "::1" {
 		return nil, fmt.Errorf("base_url requires HTTPS, except on loopback hosts for local testing")
 	}
-	if strings.TrimSpace(token) == "" || strings.ContainsAny(token, "\r\n") {
-		return nil, fmt.Errorf("token must be non-empty and contain no newlines")
+	if token == "" {
+		return nil, fmt.Errorf("token must be non-empty")
+	}
+	for _, ch := range token {
+		if ch < 33 || ch > 126 {
+			return nil, fmt.Errorf("token must contain only printable ASCII characters without whitespace")
+		}
 	}
 	if _, err := time.Parse("2006-01-02", version); err != nil {
 		return nil, fmt.Errorf("api_version must be a date in YYYY-MM-DD format")

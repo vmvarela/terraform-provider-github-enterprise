@@ -176,6 +176,11 @@ func TestClientValidation(t *testing.T) {
 	if _, err := New("https://api.github.com/", "", "2026-03-10"); err == nil {
 		t.Fatal("accepted empty token")
 	}
+	for _, token := range []string{"token\n", "token\t", "token\x7f", "secret value"} {
+		if _, err := New("https://api.github.com/", token, DefaultAPIVersion); err == nil {
+			t.Fatal("accepted invalid header characters in token")
+		}
+	}
 	if _, err := New("https://api.github.com/", "token", "invalid"); err == nil {
 		t.Fatal("accepted invalid API version")
 	}

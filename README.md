@@ -103,12 +103,13 @@ When moving from the author's `vmvarela/github` fork, create matching configurat
 
 ## Development
 
-Requires Go 1.26.6 or newer. Terraform 1.5+ is the initial target; CI validates Terraform 1.14.3 and OpenTofu separately. Only report compatibility for versions covered by passing checks.
+Requires Go 1.26.6 or newer. CI tests Terraform 1.14.3 and OpenTofu 1.11.0. Other CLI versions have not been validated.
 
 ```sh
 make build
 make test
 make integration  # Terraform must be on PATH, or set TF_ACC_TERRAFORM_PATH
+make docs         # Regenerate Registry documentation from schemas and examples
 ```
 
 For a local binary, add the absolute path to `bin` in a dedicated CLI configuration:

@@ -317,7 +317,7 @@ func TestTerraformGroupUnlink(t *testing.T) {
 	api, base := newAPI(t)
 	teamConfig := func(group string) string {
 		return fmt.Sprintf(`provider "githubenterprise" {
- token="mock-token" 
+ token="mock-token"
 base_url=%q
 }
 resource "githubenterprise_team" "test" {
