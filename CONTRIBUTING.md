@@ -11,3 +11,5 @@ Keep schemas, examples and Registry documentation consistent. Document ownership
 The provider name is `github-enterprise`; resource and data source types start with `github_enterprise_`. Examples must explicitly set `provider = github-enterprise` so they work alongside the official `github` provider. Run `make docs` after changing schemas or examples.
 
 Use conventional commit titles (`feat:`, `fix:`, `docs:`, `test:`, `ci:`). Releases are manual version tags; merging a pull request does not publish a release.
+
+Follow the [initial compatibility contract](guides/initial-contract.md), including the migration policy for features adopted upstream. Run `make package-check` on Linux amd64 with the prerequisites in the [release guide](guides/releases.md). This checks signed snapshot packages without production signing credentials. CI sets `TF_REQUIRE_CLI=1` so a missing CLI fails integration tests instead of skipping them.

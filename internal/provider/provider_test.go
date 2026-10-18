@@ -216,12 +216,18 @@ func (a *enterpriseAPI) updateTeam(r *http.Request) {
 }
 func requireTerraform(t *testing.T) {
 	t.Helper()
-	if os.Getenv("TF_ACC_TERRAFORM_PATH") == "" {
-		if _, err := exec.LookPath("terraform"); err != nil {
-			t.Skip("Install Terraform or set TF_ACC_TERRAFORM_PATH to run CLI integration tests")
+	executable := os.Getenv("TF_ACC_TERRAFORM_PATH")
+	if executable == "" {
+		executable = "terraform"
+	}
+	if _, err := exec.LookPath(executable); err != nil {
+		if os.Getenv("TF_REQUIRE_CLI") == "1" {
+			t.Fatalf("CLI integration is required but %q is unavailable: %v", executable, err)
 		}
+		t.Skip("Install Terraform or set TF_ACC_TERRAFORM_PATH to run CLI integration tests")
 	}
 }
+
 func config(base, name, description, group, orgs string) string {
 	return fmt.Sprintf(`
 provider "github-enterprise" {
