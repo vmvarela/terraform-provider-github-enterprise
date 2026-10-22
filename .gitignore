@@ -9,3 +9,5 @@
 crash.log
 
 __pycache__/
+
+.envrc
