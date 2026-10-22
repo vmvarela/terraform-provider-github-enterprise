@@ -70,14 +70,14 @@ export GITHUB_ENTERPRISE_TOKEN='...'
 
 The provider reads `GITHUB_ENTERPRISE_TOKEN`, falling back to `GITHUB_TOKEN`. An explicit sensitive `token` provider argument takes precedence. Credentials are never logged by the HTTP client.
 
-Intended token flows (live acceptance validation is still required):
+Documented token flows:
 
 - Classic PAT: `read:enterprise` for reads, `admin:enterprise` for writes, held by a user with the required enterprise role.
-- GitHub App installed on the enterprise: supply its access token with **Enterprise teams: read** or **write**, as appropriate. The provider accepts an already-issued token; minting and refreshing installation tokens are the caller's responsibility.
+- GitHub App installed on the enterprise: supply its access token with **Enterprise teams: read** or **write**, as appropriate. The provider accepts an already-issued token; minting and refreshing installation tokens are the caller's responsibility. This flow has not been live-validated.
 
-GitHub's endpoint-specific token tables and [Enterprise Teams GA announcement](https://github.blog/changelog/2026-06-04-enterprise-teams-is-now-generally-available/) document GitHub App support. Some introductory API text still says Apps are unsupported. Verify authorization against the actual endpoint and enterprise before deployment; fine-grained PAT compatibility is not asserted by this initial implementation.
+The initial verified authentication scope is a classic PAT against `api.github.com`. GitHub's endpoint-specific token tables and [Enterprise Teams GA announcement](https://github.blog/changelog/2026-06-04-enterprise-teams-is-now-generally-available/) document GitHub App support, but this provider's App-token flow remains outside the verified scope. Some introductory API text still says Apps are unsupported. Fine-grained PAT compatibility is not asserted.
 
-For Enterprise Cloud with data residency:
+Configuration example for Enterprise Cloud with data residency (not live-validated):
 
 ```hcl
 provider "github-enterprise" {
@@ -93,7 +93,7 @@ provider "github-enterprise" {
 - Membership resources manage one direct member and leave other members alone. Let the IdP control membership of an IdP-linked team; use the membership data source for reads.
 - `team_organizations` owns the **entire** assignment set. Omitted organizations are removed. An empty set removes all assignments. Use one instance per team, with `organization_selection_type = "selected"`.
 - Existing assignments must be imported before managing them. Destroying `team_organizations` removes every current assignment, including ones added outside Terraform.
-- Removing `group_id` sends JSON `null`; changing a group link may replace direct membership on GitHub. This API behavior requires live acceptance validation. Removing a description sends an empty string.
+- `group_id` is exposed: unrelated updates omit it and explicit unlink sends JSON `null` (covered by fixture tests, not live validation). IdP group link/change/unlink and membership effects are outside the initial support contract. Changing a group link may replace direct membership on GitHub; do not rely on this lifecycle until it has been validated against a safe EMU fixture. Removing a description sends an empty string.
 - Do not manage the same remote object through this provider and another provider or IdP simultaneously.
 - The client uses 60-second HTTP timeouts and follows all pagination pages. It does not automatically retry writes, because replaying a create after an uncertain network failure can duplicate a team. Rate-limit diagnostics retain the request ID and `Retry-After` header; rerun after the limit resets.
 - GitHub can mask authorization failures as 404. Verify token access before applying a plan that proposes recreating missing resources. Explicit 403/429/5xx errors fail refresh without deleting state.
@@ -132,14 +132,27 @@ provider_installation {
 
 Set `TF_CLI_CONFIG_FILE` to that file. With the development override, run `terraform plan` or `tofu plan` directly; `init` would try to resolve the unpublished provider in the Registry. Other providers in the configuration must already be installed.
 
-Real API tests require a dedicated test enterprise, an appropriately privileged token and explicit opt-in:
+### Live acceptance
+
+Live tests are opt-in and fail closed; pull-request CI never runs them. Gate every invocation per command, with the confirmation in the same shell — never recorded in `.envrc` or shell profiles:
 
 ```sh
 TF_ACC=1 GITHUB_ENTERPRISE_SLUG=my-test-enterprise \
-  go test ./internal/provider -run '^TestAcc' -v
+  GITHUB_ENTERPRISE_TEST_CONFIRM=my-test-enterprise \
+  go test ./internal/provider -run '^TestAccTeam$' -v
 ```
 
-These tests create and delete a uniquely named test team. They are never run against real enterprises by pull-request CI.
+- `TF_ACC` must be exactly `1`; any other value (including `0`) skips the tests.
+- `GITHUB_ENTERPRISE_TEST_CONFIRM` must exactly match `GITHUB_ENTERPRISE_SLUG`, naming the intended enterprise in the same command.
+- The configured `GITHUB_ENTERPRISE_BASE_URL` must be GitHub Enterprise Cloud (`api.github.com` or `*.ghe.com`); loopback and other hosts are refused before any request.
+
+Suites and required fixtures:
+
+- `TestAccTeam` (core): creates a uniquely named `tf-acc-*` team, reads it through both team data sources, reconciles an out-of-band rename back to the configured name, renames it, clears its description, imports it and verifies the numeric ID stays stable. No `group_id` is involved.
+- `TestAccTeamMembership`: additionally requires `GITHUB_ENTERPRISE_TEST_USERNAME=<user>` plus `GITHUB_ENTERPRISE_TEST_USER_CONFIRM` set to exactly that username, confirming the user is a disposable, approved fixture. The team is created and verified against the baseline before the membership is written; an out-of-band removal of that membership is reconciled. Adds, reads, imports and removes the membership on the test-created team only.
+- `TestAccTeamOrganizations`: additionally requires `GITHUB_ENTERPRISE_TEST_ORG_A=<slug>`, `GITHUB_ENTERPRISE_TEST_ORG_B=<slug>` (distinct) plus `GITHUB_ENTERPRISE_TEST_ORGS_CONFIRM` set to exactly `<ORG_A>,<ORG_B>`, confirming both are dedicated test organizations. Exercises assignment drift reconciliation, authoritative set removal (`[A,B]` → `[A]`), the empty set and resource deletion on the test-created team only.
+
+Safety model: a read-only listing of existing team IDs is captured before creation, and only a team whose numeric ID is absent from that baseline is accepted; destroy verification checks that exact ID is gone. Teams are never adopted or deleted by name, and import steps use only IDs from the same test's state. There is no sweeper: if the test process is killed during a network-ambiguous step, the team can remain — inspect the enterprise and resolve it manually rather than guessing. All three suites passed against `api.github.com` using the configured classic PAT and API version `2026-03-10`; see the [initial contract](guides/initial-contract.md) for the remaining release gates. GitHub App tokens, IdP group lifecycle, data-residency hosts, and live coexistence with `integrations/github` remain outside the verified initial scope.
 
 ## Releases
 

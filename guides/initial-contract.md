@@ -46,14 +46,29 @@ The default API version is `2026-03-10`. CI exercises Terraform 1.14.3 and OpenT
 1.11.0 on Linux; packages are built for Linux, macOS and Windows, amd64 and arm64.
 Cross-compilation does not establish runtime acceptance on all six platforms.
 
-Classic PATs and enterprise-installed GitHub App tokens are the intended token
-flows. Live lifecycle, permissions, optional response fields, IdP behavior and
-data-residency coverage remain release gates in issue #4. Fixture tests and
-package smoke tests do not establish these live API contracts. Document verified
-coverage before the first release; narrow unsupported claims if an appropriate
-test environment is unavailable.
+The initial verified authentication scope is a classic PAT against
+`api.github.com`. The gated live acceptance suites in `internal/provider/provider_test.go`
+are the instrument for issue #4: they require `TF_ACC=1` plus a per-command
+`GITHUB_ENTERPRISE_TEST_CONFIRM` exactly matching the enterprise slug, and they
+refuse any API host other than Enterprise Cloud before writing. On 2026-10-19,
+all three suites passed against the public Enterprise Cloud API (`api.github.com`)
+using the configured classic PAT and API version `2026-03-10`. Together they
+covered all three resources and four data sources, including imports, drift,
+authoritative organization assignments, and cleanup of test-created teams.
+GitHub App tokens, data-residency hosts, and runtime coexistence with
+`integrations/github` were not tested and are outside the initial scope. The
+`group_id` field remains exposed, but IdP group link/change/unlink and their
+membership effects are unverified and outside the initial support commitment;
+do not rely on that lifecycle until it is validated with a safe EMU fixture.
+Offline checks (package and schema validation plus HTTP-fixture lifecycle tests)
+verify contracts locally but do not establish live API contracts. The verified
+scope and the areas left unverified are recorded in issue #4 and summarized in
+the README.
 
-The [complete example](../examples/complete) is checked with both providers loaded.
+The [complete example](../examples/complete) documents running with both
+providers loaded; CI checks its formatting and installs the packaged provider
+under both CLIs, but live runtime coexistence with `integrations/github` is
+unverified.
 Import creates a binding; it does not transfer ownership from another provider.
 Never apply two bindings that manage the same remote object.
 
