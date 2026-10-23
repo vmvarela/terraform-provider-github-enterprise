@@ -78,12 +78,14 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", 403)
 		return
 	}
-	path := strings.TrimPrefix(r.URL.Path, "/enterprises/acme/teams")
-	if path == r.URL.Path {
+	segments := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/enterprises/"), "/"), "/")
+	// Any enterprise slug is accepted so tests can exercise a provider-level default.
+	if len(segments) < 2 || segments[1] != "teams" {
 		http.NotFound(w, r)
 		return
 	}
-	if path == "" {
+	parts := segments[2:]
+	if len(parts) == 0 {
 		if r.Method == "GET" {
 			teams := []client.Team{}
 			if a.team != nil {
@@ -105,7 +107,6 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
 	if parts[0] != "42" && parts[0] != a.team.Slug {
 		http.NotFound(w, r)
 		return
@@ -325,6 +326,64 @@ func TestTerraformLifecycle(t *testing.T) {
 			delete(api.members, "octocat")
 		}, Check: resource.TestCheckResourceAttr("github_enterprise_team_organizations.test", "organization_slugs.#", "1")},
 		{Config: config(base, "New Platform", "", "", `[]`), Check: resource.TestCheckResourceAttr("github_enterprise_team_organizations.test", "organization_slugs.#", "0")},
+	}})
+}
+
+// A single provider-level slug must be enough for every block, and changing it
+// must replace the resources instead of updating them against the old enterprise.
+func TestTerraformInheritsProviderEnterpriseSlug(t *testing.T) {
+	requireTerraform(t)
+	api, base := newAPI(t)
+	cfg := func(slug string) string {
+		return fmt.Sprintf(`
+provider "github-enterprise" {
+  token           = "mock-token"
+  base_url        = %q
+  enterprise_slug = %q
+}
+resource "github_enterprise_team" "test" {
+  provider = github-enterprise
+
+  name                        = "Platform"
+  organization_selection_type = "selected"
+}
+resource "github_enterprise_team_membership" "test" {
+  provider = github-enterprise
+
+  team_id  = github_enterprise_team.test.team_id
+  username = "octocat"
+}
+resource "github_enterprise_team_organizations" "test" {
+  provider = github-enterprise
+
+  team_id            = github_enterprise_team.test.team_id
+  organization_slugs = ["org-one"]
+}
+data "github_enterprise_teams" "test" {
+  provider = github-enterprise
+
+  depends_on = [github_enterprise_team.test]
+}
+`, base, slug)
+	}
+	inherited := func(slug string) resource.TestCheckFunc {
+		return resource.ComposeTestCheckFunc(
+			resource.TestCheckResourceAttr("github_enterprise_team.test", "enterprise_slug", slug),
+			resource.TestCheckResourceAttr("github_enterprise_team_membership.test", "enterprise_slug", slug),
+			resource.TestCheckResourceAttr("github_enterprise_team_organizations.test", "enterprise_slug", slug),
+			resource.TestCheckResourceAttr("data.github_enterprise_teams.test", "enterprise_slug", slug),
+		)
+	}
+	resource.UnitTest(t, resource.TestCase{ProtoV6ProviderFactories: factories, Steps: []resource.TestStep{
+		{Config: cfg("acme"), Check: inherited("acme")},
+		{Config: cfg("acme-beta"), Check: resource.ComposeTestCheckFunc(inherited("acme-beta"), func(_ *terraform.State) error {
+			api.mu.Lock()
+			defer api.mu.Unlock()
+			if api.creates != 2 {
+				return fmt.Errorf("changing the provider slug did not replace the team: creates=%d", api.creates)
+			}
+			return nil
+		})},
 	}})
 }
 

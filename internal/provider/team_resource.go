@@ -73,7 +73,7 @@ func (m teamModel) body() map[string]any {
 }
 
 func (r *teamResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	applyEnterpriseSlugDefault(ctx, r.enterpriseSlug, req.Config, resp)
+	applyEnterpriseSlugDefault(ctx, r.enterpriseSlug, req, resp)
 }
 func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data teamModel

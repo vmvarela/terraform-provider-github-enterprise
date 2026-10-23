@@ -42,7 +42,7 @@ func (r *membershipResource) Schema(_ context.Context, _ resource.SchemaRequest,
 	}}
 }
 func (r *membershipResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	applyEnterpriseSlugDefault(ctx, r.enterpriseSlug, req.Config, resp)
+	applyEnterpriseSlugDefault(ctx, r.enterpriseSlug, req, resp)
 }
 func (r *membershipResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data membershipModel

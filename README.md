@@ -59,7 +59,7 @@ resource "github_enterprise_team_organizations" "platform" {
 }
 ```
 
-`enterprise_slug` is declared once on the provider and every resource and data source inherits it. An explicit `enterprise_slug` on a block still wins, and `GITHUB_ENTERPRISE_SLUG` is the fallback when the provider argument is omitted.
+`enterprise_slug` is declared once on the provider and every resource and data source inherits it. An explicit `enterprise_slug` on a block still wins, and `GITHUB_ENTERPRISE_SLUG` is the fallback when the provider argument is omitted. Changing the resolved slug replaces the resources bound to it, because a different enterprise is a different remote object.
 
 `github-enterprise` is the local provider name and distribution name. Resource and data source types use the readable `github_enterprise_` prefix. Set `provider = github-enterprise` on every resource and data source: otherwise Terraform infers `github` from the type name and selects the official provider. Configure the local name explicitly as above.
 

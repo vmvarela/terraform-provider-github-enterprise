@@ -48,35 +48,58 @@ func TestModifyPlanFillsProviderSlug(t *testing.T) {
 	r := &teamResource{configuredResource{enterpriseSlug: "provider-enterprise"}}
 	var resp resource.SchemaResponse
 	r.Schema(ctx, resource.SchemaRequest{}, &resp)
-
-	// Everything null: the block sets no slug, as a configuration that relies on
-	// the provider value would.
 	schemaType := resp.Schema.Type().TerraformType(ctx).(tftypes.Object)
-	values := map[string]tftypes.Value{}
-	for name, attrType := range schemaType.AttributeTypes {
-		values[name] = tftypes.NewValue(attrType, nil)
-	}
-	raw := tftypes.NewValue(schemaType, values)
-	plan := tfsdk.Plan{Schema: resp.Schema, Raw: raw}
 
-	var mp resource.ModifyPlanResponse
-	mp.Plan = plan
-	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Config: tfsdk.Config{Schema: resp.Schema, Raw: raw}, Plan: plan}, &mp)
-	if mp.Diagnostics.HasError() {
-		t.Fatalf("ModifyPlan reported %v", mp.Diagnostics)
+	// The block sets no slug, as a configuration that relies on the provider
+	// value would.
+	empty := func() map[string]tftypes.Value {
+		values := map[string]tftypes.Value{}
+		for name, attrType := range schemaType.AttributeTypes {
+			values[name] = tftypes.NewValue(attrType, nil)
+		}
+		return values
 	}
-	var got types.String
-	mp.Plan.GetAttribute(ctx, path.Root("enterprise_slug"), &got)
-	if got.ValueString() != "provider-enterprise" {
-		t.Fatalf("planned enterprise_slug = %q, want the provider value", got.ValueString())
+	plan := func() tfsdk.Plan {
+		return tfsdk.Plan{Schema: resp.Schema, Raw: tftypes.NewValue(schemaType, empty())}
+	}
+	state := func(slug string) tfsdk.State {
+		values := empty()
+		values["enterprise_slug"] = tftypes.NewValue(schemaType.AttributeTypes["enterprise_slug"], slug)
+		return tfsdk.State{Schema: resp.Schema, Raw: tftypes.NewValue(schemaType, values)}
+	}
+	request := func(prior tfsdk.State) resource.ModifyPlanRequest {
+		return resource.ModifyPlanRequest{Config: tfsdk.Config{Schema: resp.Schema, Raw: tftypes.NewValue(schemaType, empty())}, Plan: plan(), State: prior}
+	}
+	planned := func(req resource.ModifyPlanRequest) (types.String, *resource.ModifyPlanResponse) {
+		var mp resource.ModifyPlanResponse
+		mp.Plan = req.Plan
+		r.ModifyPlan(ctx, req, &mp)
+		var got types.String
+		mp.Plan.GetAttribute(ctx, path.Root("enterprise_slug"), &got)
+		return got, &mp
+	}
+
+	create := resource.ModifyPlanRequest{Config: tfsdk.Config{Schema: resp.Schema, Raw: tftypes.NewValue(schemaType, empty())}, Plan: plan()}
+	if got, mp := planned(create); mp.Diagnostics.HasError() || got.ValueString() != "provider-enterprise" {
+		t.Fatalf("created plan slug = %q, diagnostics %v; want the provider value", got.ValueString(), mp.Diagnostics)
+	} else if len(mp.RequiresReplace) != 0 {
+		t.Fatalf("creation requested a replacement: %v", mp.RequiresReplace)
+	}
+
+	if _, mp := planned(request(state("provider-enterprise"))); mp.Diagnostics.HasError() || len(mp.RequiresReplace) != 0 {
+		t.Fatalf("unchanged inherited slug requested a replacement: %v %v", mp.RequiresReplace, mp.Diagnostics)
+	}
+
+	// Switching the provider slug must recreate the resource; an in-place
+	// update would talk to the old enterprise.
+	if got, mp := planned(request(state("previous-enterprise"))); mp.Diagnostics.HasError() || len(mp.RequiresReplace) != 1 || !mp.RequiresReplace[0].Equal(path.Root("enterprise_slug")) {
+		t.Fatalf("planned slug = %q, replacements %v, diagnostics %v; want a replacement", got.ValueString(), mp.RequiresReplace, mp.Diagnostics)
 	}
 
 	// With neither a provider value nor an environment default the plan fails
 	// instead of sending an empty slug to the API.
 	r = &teamResource{}
-	mp = resource.ModifyPlanResponse{Plan: plan}
-	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Config: tfsdk.Config{Schema: resp.Schema, Raw: raw}, Plan: plan}, &mp)
-	if !mp.Diagnostics.HasError() {
+	if _, mp := planned(create); !mp.Diagnostics.HasError() {
 		t.Fatal("ModifyPlan accepted a missing enterprise slug")
 	}
 }

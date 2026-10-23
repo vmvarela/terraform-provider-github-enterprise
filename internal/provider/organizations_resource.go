@@ -135,7 +135,7 @@ func (r *organizationsResource) readOrganizations(ctx context.Context, data *org
 	return ds
 }
 func (r *organizationsResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	applyEnterpriseSlugDefault(ctx, r.enterpriseSlug, req.Config, resp)
+	applyEnterpriseSlugDefault(ctx, r.enterpriseSlug, req, resp)
 }
 func (r *organizationsResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data organizationsModel
