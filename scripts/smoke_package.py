@@ -2,6 +2,7 @@
 """Install the packaged provider beside integrations/github with both CLIs."""
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -36,9 +37,13 @@ def main():
             shutil.copytree(ROOT / "examples/complete", work)
             config = work / "main.tf"
             text = config.read_text()
-            if text.count('version = "= 0.1.0-rc.1"') != 1:
+            text, count = re.subn(
+                r'(source\s*=\s*"vmvarela/github-enterprise"\s+version\s*=\s*)"[^"]*"',
+                r'\1"= ' + version + r'"',
+                text)
+            if count != 1:
                 raise ValueError("Expected exactly one enterprise provider version constraint")
-            config.write_text(text.replace('version = "= 0.1.0-rc.1"', f'version = "= {version}"'))
+            config.write_text(text)
             cli_config = root / "cli.tfrc"
             cli_config.write_text('provider_installation {\n'
                 f'  filesystem_mirror {{\n    path = {json.dumps(str(mirror))}\n    include = ["{host}/vmvarela/github-enterprise"]\n  }}\n'
