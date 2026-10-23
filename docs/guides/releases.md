@@ -38,13 +38,38 @@ have no development overrides or inherited plugin caches. The build output stays
 in the ignored `dist/` directory for inspection. No production signing key is
 available to pull-request validation, including fork PRs.
 
+## Signing key
+
+Release artefacts are signed with one dedicated GPG key, kept separate from commit
+signing and from SSH keys.
+
+- RSA 4096, passphrase protected, one year of validity from creation. Both registries
+  reject expired keys, so renew before expiry; a published version is never replaced.
+- User ID `Victor M. Varela (GitHub Enterprise provider release) <vmvarela@gmail.com>`.
+  The key is `3610 065D B825 0D31 A49E  C0D5 2845 88A6 1CDA 90B9`, valid until
+  2027-10-23. That fingerprint identifies it here and in the registry account settings.
+- The private key, its passphrase and the revocation certificate stay with the
+  maintainer: an encrypted export outside the repository plus an independent encrypted
+  backup. No private material is committed, logged or pasted into an issue.
+- Production values live in the repository secrets `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE`
+  and `GPG_FINGERPRINT`. The release job aborts while any of them is empty, and
+  pull-request validation never receives them.
+- Register the public key with each registry before publishing, and keep it in this
+  directory as `signing-key.asc` so consumers can verify a release on their own.
+
+Consumers verify a published signature without any private material:
+
+```console
+gpg --import signing-key.asc
+gpg --verify terraform-provider-github-enterprise_0.1.0-rc.1_SHA256SUMS.sig \
+  terraform-provider-github-enterprise_0.1.0-rc.1_SHA256SUMS
+```
+
 ## Publication prerequisites
 
 Complete live acceptance (#4), review the [initial contract](initial-contract.md),
 and prepare the Registry registration and signing credentials (#6) before tagging.
-Configure `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` and `GPG_FINGERPRINT` as repository
-secrets; never store their values in files tracked by git. Register the public key
-with the registries. Prerelease tags such as `v0.1.0-rc.1` are marked as prereleases
+Prerelease tags such as `v0.1.0-rc.1` are marked as prereleases
 by GoReleaser; stable tags such as `v0.1.0` are marked as stable releases.
 
 The pipeline validation does not replace live acceptance or prove Registry
