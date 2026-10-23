@@ -1,3 +1,9 @@
+---
+page_title: "Initial release contract"
+description: |-
+  Scope, ownership, compatibility and deprecation commitments for the v0.1 release line.
+---
+
 # Initial release contract
 
 The v0.1 release line complements `integrations/github` with Enterprise Teams
@@ -65,7 +71,7 @@ verify contracts locally but do not establish live API contracts. The verified
 scope and the areas left unverified are recorded in issue #4 and summarized in
 the README.
 
-The [complete example](../examples/complete) documents running with both
+The [complete example](https://github.com/vmvarela/terraform-provider-github-enterprise/tree/master/examples/complete) documents running with both
 providers loaded; CI checks its formatting and installs the packaged provider
 under both CLIs, but live runtime coexistence with `integrations/github` is
 unverified.

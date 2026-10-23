@@ -12,4 +12,4 @@ The provider name is `github-enterprise`; resource and data source types start w
 
 Use conventional commit titles (`feat:`, `fix:`, `docs:`, `test:`, `ci:`). Releases are manual version tags; merging a pull request does not publish a release.
 
-Follow the [initial compatibility contract](guides/initial-contract.md), including the migration policy for features adopted upstream. Run `make package-check` on Linux amd64 with the prerequisites in the [release guide](guides/releases.md). This checks signed snapshot packages without production signing credentials. CI sets `TF_REQUIRE_CLI=1` so a missing CLI fails integration tests instead of skipping them.
+Follow the [initial compatibility contract](docs/guides/initial-contract.md), including the migration policy for features adopted upstream. Run `make package-check` on Linux amd64 with the prerequisites in the [release guide](docs/guides/releases.md). This checks signed snapshot packages without production signing credentials. CI sets `TF_REQUIRE_CLI=1` so a missing CLI fails integration tests instead of skipping them.

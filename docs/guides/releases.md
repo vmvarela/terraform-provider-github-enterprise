@@ -1,3 +1,9 @@
+---
+page_title: "Release validation"
+description: |-
+  Packaging, signing and publication prerequisites for manual releases.
+---
+
 # Release validation
 
 Releases remain manual `v*` tags. A merge or pull request never publishes a release.
