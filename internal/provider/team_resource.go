@@ -16,7 +16,10 @@ import (
 	"github.com/vmvarela/terraform-provider-github-enterprise/internal/client"
 )
 
-var _ resource.ResourceWithImportState = &teamResource{}
+var (
+	_ resource.ResourceWithImportState = &teamResource{}
+	_ resource.ResourceWithModifyPlan  = &teamResource{}
+)
 
 type teamResource struct{ configuredResource }
 type teamModel struct {
@@ -37,7 +40,7 @@ func (r *teamResource) Metadata(_ context.Context, _ resource.MetadataRequest, r
 func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Manages a GitHub Enterprise Cloud team. Numeric identity is preserved across renames. Refresh and import fail without changing state if GitHub omits organization_selection_type or notification_setting; creation defaults are never treated as observed API values.", Attributes: map[string]schema.Attribute{
 		"id":                          schema.StringAttribute{Computed: true, MarkdownDescription: "Stable identity: enterprise_slug/team_id.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-		"enterprise_slug":             schema.StringAttribute{Required: true, MarkdownDescription: "Enterprise account slug.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+		"enterprise_slug":             schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Enterprise account slug. Defaults to the provider-level enterprise_slug.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"team_id":                     schema.Int64Attribute{Computed: true, MarkdownDescription: "Stable numeric team ID. Use this in membership and organization assignment resources.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
 		"slug":                        schema.StringAttribute{Computed: true, MarkdownDescription: "GitHub-generated team slug; can change when the team is renamed."},
 		"name":                        schema.StringAttribute{Required: true, MarkdownDescription: "Team name.", Validators: []validator.String{nameRule()}},
@@ -69,6 +72,9 @@ func (m teamModel) body() map[string]any {
 	return body
 }
 
+func (r *teamResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	applyEnterpriseSlugDefault(ctx, r.enterpriseSlug, req.Config, resp)
+}
 func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data teamModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)

@@ -25,7 +25,7 @@ data "github_enterprise_team_organizations" "example" {
 
 | Attribute | Type | Requirement | Description |
 | --- | --- | --- | --- |
-| `enterprise_slug` | `String` | Required | Enterprise account slug. |
+| `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `id` | `String` | Read-only | enterprise_slug/team_id. |
 | `organization_slugs` | `Set[tftypes.String]` | Read-only | Assigned organization slugs. |
 | `team_id` | `Number` | Required | Numeric enterprise team ID. |

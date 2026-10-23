@@ -24,7 +24,7 @@ data "github_enterprise_teams" "example" {
 
 | Attribute | Type | Requirement | Description |
 | --- | --- | --- | --- |
-| `enterprise_slug` | `String` | Required | Enterprise account slug. |
+| `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `id` | `String` | Read-only | Enterprise slug. |
 | `teams` | `list(object)` | Read-only | Enterprise teams in API order. |
 

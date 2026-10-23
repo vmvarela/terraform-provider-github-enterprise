@@ -42,8 +42,13 @@ func oneOf(values ...string) validator.String {
 func nameRule() validator.String {
 	return stringRule{"Must contain 1 to 255 characters and cannot be blank.", func(s string) bool { return strings.TrimSpace(s) != "" && len([]rune(s)) <= 255 }}
 }
+
+// enterpriseSlugPattern is the slug shape GitHub accepts; the provider
+// validates environment-supplied values with it too.
+var enterpriseSlugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+
 func enterpriseRule() validator.String {
-	return patternRule(`^[a-z0-9][a-z0-9-]*$`, "Use a lowercase enterprise slug containing letters, digits and hyphens.")
+	return stringRule{"Use a lowercase enterprise slug containing letters, digits and hyphens.", enterpriseSlugPattern.MatchString}
 }
 func usernameRule() validator.String {
 	return patternRule(`^[A-Za-z0-9][A-Za-z0-9_-]*$`, "Use a GitHub username, including an enterprise managed username when applicable.")

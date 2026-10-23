@@ -26,7 +26,7 @@ data "github_enterprise_team_membership" "example" {
 
 | Attribute | Type | Requirement | Description |
 | --- | --- | --- | --- |
-| `enterprise_slug` | `String` | Required | Enterprise account slug. |
+| `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `id` | `String` | Read-only | enterprise_slug/team_id/username. |
 | `is_member` | `Bool` | Read-only | True when the membership exists. A missing membership is an error. |
 | `team_id` | `Number` | Required | Numeric enterprise team ID. |
