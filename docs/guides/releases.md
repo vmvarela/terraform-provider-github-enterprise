@@ -61,8 +61,8 @@ Consumers verify a published signature without any private material:
 
 ```console
 gpg --import signing-key.asc
-gpg --verify terraform-provider-github-enterprise_0.1.0-rc.1_SHA256SUMS.sig \
-  terraform-provider-github-enterprise_0.1.0-rc.1_SHA256SUMS
+gpg --verify terraform-provider-github-enterprise_0.1.0_SHA256SUMS.sig \
+  terraform-provider-github-enterprise_0.1.0_SHA256SUMS
 ```
 
 ## Publication prerequisites
