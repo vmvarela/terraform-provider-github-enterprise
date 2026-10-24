@@ -27,7 +27,7 @@ data "github_enterprise_team_organizations" "example" {
 | --- | --- | --- | --- |
 | `enterprise_slug` | `String` | Required | Enterprise account slug. |
 | `id` | `String` | Read-only | enterprise_slug/team_id. |
-| `organization_slugs` | `Set[tftypes.String]` | Read-only | Assigned organization slugs. |
+| `organization_slugs` | `Set of String` | Read-only | Assigned organization slugs. |
 | `team_id` | `Number` | Required | Numeric enterprise team ID. |
 
 See the [provider guide](https://github.com/vmvarela/terraform-provider-github-enterprise#authentication) for authentication, ownership and compatibility requirements.

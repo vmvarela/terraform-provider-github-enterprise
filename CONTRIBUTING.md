@@ -1,15 +1,100 @@
 # Contributing
 
-Keep this provider focused on enterprise-level capabilities missing from `integrations/github`. Reproduce a lifecycle or API behavior issue before changing it.
+Keep this provider focused on enterprise-level capabilities missing from
+`integrations/github`. Reproduce a lifecycle or API behavior issue before changing
+it.
 
-Run `make check` and `make integration` before opening a pull request. HTTP-backed Terraform integration tests must not require real credentials. Add meaningful regression coverage for changes to identity, import, pagination, drift, and destructive operations. Use a dedicated enterprise for explicitly enabled real acceptance tests.
+## Before opening a pull request
 
-Use numeric team identities in relationships. Never trust a slug as immutable identity. Do not silently turn API permission failures into missing resources. Preserve recoverable state after partially applied assignment updates. Avoid automatic retries of non-idempotent operations.
+Run `make check` and `make integration`. HTTP-backed Terraform integration tests
+must not require real credentials. Add meaningful regression coverage for changes
+to identity, import, pagination, drift, and destructive operations. Use a dedicated
+enterprise for real acceptance tests, which are always opt-in.
 
-Keep schemas, examples and Registry documentation consistent. Document ownership (individual or authoritative), import syntax, token permissions and compatibility limits. Do not add resources for reporting alone without a concrete Terraform use case.
+## Design constraints
 
-The provider name is `github-enterprise`; resource and data source types start with `github_enterprise_`. Examples must explicitly set `provider = github-enterprise` so they work alongside the official `github` provider. Run `make docs` after changing schemas or examples.
+Use numeric team identities in relationships. Never trust a slug as immutable
+identity. Do not silently turn API permission failures into missing resources.
+Preserve recoverable state after partially applied assignment updates. Avoid
+automatic retries of non-idempotent operations.
 
-Use conventional commit titles (`feat:`, `fix:`, `docs:`, `test:`, `ci:`). Releases are manual version tags; merging a pull request does not publish a release.
+Keep schemas, examples and Registry documentation consistent. Document ownership
+(individual or authoritative), import syntax, token permissions and compatibility
+limits. Do not add resources for reporting alone without a concrete Terraform use
+case.
 
-Follow the [initial compatibility contract](docs/guides/initial-contract.md), including the migration policy for features adopted upstream. Run `make package-check` on Linux amd64 with the prerequisites in the [release guide](docs/guides/releases.md). This checks signed snapshot packages without production signing credentials. CI sets `TF_REQUIRE_CLI=1` so a missing CLI fails integration tests instead of skipping them.
+The provider name is `github-enterprise`; resource and data source types start with
+`github_enterprise_`. Examples must explicitly set `provider = github-enterprise` so
+they work alongside the official `github` provider. Run `make docs` after changing
+schemas or examples.
+
+`docs/` is published to the Terraform and OpenTofu registries as-is, so it
+describes the provider to its users and never the process of building or releasing
+it. CI graphs, package recipes, signing-key custody, registry registration and
+acceptance-test plumbing belong in `RELEASING.md` or here.
+
+Use conventional commit titles (`feat:`, `fix:`, `docs:`, `test:`, `ci:`). Releases
+are manual version tags; merging a pull request does not publish a release. See
+[RELEASING.md](RELEASING.md) for the release procedure and
+[the compatibility contract](docs/guides/initial-contract.md) for the commitments
+each release must keep.
+
+## Live acceptance tests
+
+Live tests are opt-in and fail closed; pull-request CI never runs them. They write
+to a real enterprise, so gate every invocation per command, with the confirmation
+in the same shell and never recorded in `.envrc` or shell profiles:
+
+```sh
+TF_ACC=1 GITHUB_ENTERPRISE_SLUG=my-test-enterprise \
+  GITHUB_ENTERPRISE_TEST_CONFIRM=my-test-enterprise \
+  go test ./internal/provider -run '^TestAccTeam$' -v
+```
+
+- `TF_ACC` must be exactly `1`; any other value (including `0`) skips the tests.
+- `GITHUB_ENTERPRISE_TEST_CONFIRM` must exactly match `GITHUB_ENTERPRISE_SLUG`,
+  naming the intended enterprise in the same command.
+- The configured `GITHUB_ENTERPRISE_BASE_URL` must be GitHub Enterprise Cloud
+  (`api.github.com` or `*.ghe.com`); loopback and other hosts are refused before
+  any request.
+
+Suites and required fixtures:
+
+- `TestAccTeam` (core): creates a uniquely named `tf-acc-*` team, reads it through
+  both team data sources, reconciles an out-of-band rename back to the configured
+  name, renames it, clears its description, imports it and verifies the numeric ID
+  stays stable. No `group_id` is involved.
+- `TestAccTeamMembership`: additionally requires
+  `GITHUB_ENTERPRISE_TEST_USERNAME=<user>` plus
+  `GITHUB_ENTERPRISE_TEST_USER_CONFIRM` set to exactly that username, confirming
+  the user is a disposable, approved fixture. The team is created and verified
+  against the baseline before the membership is written; an out-of-band removal of
+  that membership is reconciled. Adds, reads, imports and removes the membership on
+  the test-created team only.
+- `TestAccTeamOrganizations`: additionally requires
+  `GITHUB_ENTERPRISE_TEST_ORG_A=<slug>`, `GITHUB_ENTERPRISE_TEST_ORG_B=<slug>`
+  (distinct) plus `GITHUB_ENTERPRISE_TEST_ORGS_CONFIRM` set to exactly
+  `<ORG_A>,<ORG_B>`, confirming both are dedicated test organizations. Exercises
+  assignment drift reconciliation, authoritative set removal (`[A,B]` → `[A]`), the
+  empty set and resource deletion on the test-created team only.
+
+Safety model: a read-only listing of existing team IDs is captured before creation,
+and only a team whose numeric ID is absent from that baseline is accepted; destroy
+verification checks that exact ID is gone. Teams are never adopted or deleted by
+name, and import steps use only IDs from the same test's state. There is no
+sweeper: if the test process is killed during a network-ambiguous step, the team can
+remain — inspect the enterprise and resolve it manually rather than guessing.
+
+All three suites passed against `api.github.com` on 2026-10-19 using a classic PAT
+and API version `2026-03-10`. Live coexistence with `integrations/github` 6.13.0
+was verified on 2026-10-23 through `examples/complete`. GitHub App tokens, IdP group
+lifecycle, and data-residency hosts remain unverified; record a new result here when
+one of them is exercised.
+
+## Overlap with the official provider
+
+Check released functionality and lifecycle semantics upstream, not just an open
+pull request or a matching name. Stop adding overlapping features once
+`integrations/github` provides an equivalent, and plan the deprecation described in
+the [compatibility contract](docs/guides/initial-contract.md) instead of
+maintaining two implementations.
