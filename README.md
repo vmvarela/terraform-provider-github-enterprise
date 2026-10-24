@@ -2,7 +2,7 @@
 
 A focused Terraform and OpenTofu provider for GitHub Enterprise Cloud administration. Use it alongside [`integrations/github`](https://registry.terraform.io/providers/integrations/github/latest/docs): keep repositories and organizations there, and manage enterprise teams here.
 
-**Status:** initial implementation, not yet published to the Terraform Registry. HTTP-backed Terraform integration tests run without credentials. Real Enterprise Cloud acceptance tests are opt-in; production use should wait for validation in a test enterprise.
+**Status:** published as version 0.1.0 in the Terraform and OpenTofu registries. It manages enterprise teams only: repositories and organizations stay in `integrations/github`. A classic PAT against `api.github.com`, all three resources and four data sources, and coexistence with `integrations/github` are verified against a test enterprise. GitHub App tokens, IdP group lifecycle and data-residency hosts are not; see the [compatibility contract](docs/guides/initial-contract.md).
 
 ## Scope
 
@@ -18,7 +18,7 @@ Future work: enterprise cost centers, read-only SCIM lookups, and selected billi
 
 ## Example
 
-After the provider is published, use the following source address. Until then, see local development below.
+The provider is published as `vmvarela/github-enterprise`. Pin a version and keep selecting it explicitly:
 
 ```hcl
 terraform {
@@ -27,7 +27,8 @@ terraform {
       source = "integrations/github"
     }
     github-enterprise = {
-      source = "vmvarela/github-enterprise"
+      source  = "vmvarela/github-enterprise"
+      version = "~> 0.1"
     }
   }
 }
@@ -131,37 +132,17 @@ provider_installation {
 }
 ```
 
-Set `TF_CLI_CONFIG_FILE` to that file. With the development override, run `terraform plan` or `tofu plan` directly; `init` would try to resolve the unpublished provider in the Registry. Other providers in the configuration must already be installed.
+Set `TF_CLI_CONFIG_FILE` to that file. With the development override, run `terraform plan` or `tofu plan` directly; `init` resolves the published provider instead of your local build. Other providers in the configuration must already be installed.
 
-### Live acceptance
-
-Live tests are opt-in and fail closed; pull-request CI never runs them. Gate every invocation per command, with the confirmation in the same shell — never recorded in `.envrc` or shell profiles:
-
-```sh
-TF_ACC=1 GITHUB_ENTERPRISE_SLUG=my-test-enterprise \
-  GITHUB_ENTERPRISE_TEST_CONFIRM=my-test-enterprise \
-  go test ./internal/provider -run '^TestAccTeam$' -v
-```
-
-- `TF_ACC` must be exactly `1`; any other value (including `0`) skips the tests.
-- `GITHUB_ENTERPRISE_TEST_CONFIRM` must exactly match `GITHUB_ENTERPRISE_SLUG`, naming the intended enterprise in the same command.
-- The configured `GITHUB_ENTERPRISE_BASE_URL` must be GitHub Enterprise Cloud (`api.github.com` or `*.ghe.com`); loopback and other hosts are refused before any request.
-
-Suites and required fixtures:
-
-- `TestAccTeam` (core): creates a uniquely named `tf-acc-*` team, reads it through both team data sources, reconciles an out-of-band rename back to the configured name, renames it, clears its description, imports it and verifies the numeric ID stays stable. No `group_id` is involved.
-- `TestAccTeamMembership`: additionally requires `GITHUB_ENTERPRISE_TEST_USERNAME=<user>` plus `GITHUB_ENTERPRISE_TEST_USER_CONFIRM` set to exactly that username, confirming the user is a disposable, approved fixture. The team is created and verified against the baseline before the membership is written; an out-of-band removal of that membership is reconciled. Adds, reads, imports and removes the membership on the test-created team only.
-- `TestAccTeamOrganizations`: additionally requires `GITHUB_ENTERPRISE_TEST_ORG_A=<slug>`, `GITHUB_ENTERPRISE_TEST_ORG_B=<slug>` (distinct) plus `GITHUB_ENTERPRISE_TEST_ORGS_CONFIRM` set to exactly `<ORG_A>,<ORG_B>`, confirming both are dedicated test organizations. Exercises assignment drift reconciliation, authoritative set removal (`[A,B]` → `[A]`), the empty set and resource deletion on the test-created team only.
-
-Safety model: a read-only listing of existing team IDs is captured before creation, and only a team whose numeric ID is absent from that baseline is accepted; destroy verification checks that exact ID is gone. Teams are never adopted or deleted by name, and import steps use only IDs from the same test's state. There is no sweeper: if the test process is killed during a network-ambiguous step, the team can remain — inspect the enterprise and resolve it manually rather than guessing. All three suites passed against `api.github.com` using the configured classic PAT and API version `2026-03-10`; see the [initial contract](docs/guides/initial-contract.md) for the remaining release gates. GitHub App tokens, IdP group lifecycle, data-residency hosts, and live coexistence with `integrations/github` remain outside the verified initial scope.
+Live acceptance tests are opt-in and fail closed; pull-request CI never runs them. Their gating, fixtures and safety model are documented in [CONTRIBUTING.md](CONTRIBUTING.md#live-acceptance-tests).
 
 ## Releases
 
-The [initial contract](docs/guides/initial-contract.md) defines compatibility, imports and the deprecation policy when the official provider gains an equivalent feature. See the [complete coexistence example](examples/complete) and [release validation guide](docs/guides/releases.md).
+Versions follow semantic versioning and ship as signed packages to the Terraform and OpenTofu registries; a published version is never replaced. Every release runs the full CI workflow against the tagged commit before publication.
 
-Every release runs the reusable CI workflow against the tagged commit before publication. CI also builds a snapshot with a disposable signing key, verifies its archives and signature, and installs the packaged provider with both Terraform and OpenTofu.
+The [release verification guide](docs/guides/releases.md) covers supported platforms and signature checks. The [compatibility contract](docs/guides/initial-contract.md) defines ownership, imports and the deprecation policy applied when the official provider gains an equivalent feature. The [complete coexistence example](examples/complete) runs both providers in one configuration.
 
-The tag-triggered release workflow builds signed Terraform-compatible archives using GoReleaser. Before tagging a release, configure `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE`, and `GPG_FINGERPRINT`, register the public signing key, and publish the provider through the Terraform Registry UI. Registry registration and signing credentials are not configured by the initial implementation. OpenTofu Registry registration is a separate follow-up.
+Maintainers: [RELEASING.md](RELEASING.md).
 
 ## Origin
 

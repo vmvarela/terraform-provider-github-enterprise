@@ -79,7 +79,8 @@ func writeDoc(title, path, example string, schema *tfprotov6.Schema, importText 
 		}
 		typ := "object"
 		if a.Type != nil {
-			typ = strings.TrimPrefix(a.Type.String(), "tftypes.")
+			// Terraform type names are user-facing: render Set[tftypes.String] as Set of String.
+			typ = strings.NewReplacer("tftypes.", "", "[", " of ", "]", "").Replace(a.Type.String())
 		}
 		if a.NestedType != nil {
 			typ = "list(object)"

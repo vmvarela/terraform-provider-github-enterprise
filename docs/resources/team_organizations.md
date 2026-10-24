@@ -27,7 +27,7 @@ resource "github_enterprise_team_organizations" "example" {
 | --- | --- | --- | --- |
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `id` | `String` | Read-only | enterprise_slug/team_id. |
-| `organization_slugs` | `Set[tftypes.String]` | Required | Complete set of lowercase organization slugs. An empty set removes all assignments. |
+| `organization_slugs` | `Set of String` | Required | Complete set of lowercase organization slugs. An empty set removes all assignments. |
 | `team_id` | `Number` | Required | Numeric team ID. |
 
 ## Import

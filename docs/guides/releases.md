@@ -1,77 +1,83 @@
 ---
-page_title: "Release validation"
+page_title: "Release verification"
 description: |-
-  Packaging, signing and publication prerequisites for manual releases.
+  How to verify a released provider package, its signature and its supported versions.
 ---
 
-# Release validation
+# Release verification
 
-Releases remain manual `v*` tags. A merge or pull request never publishes a release.
-The release workflow calls `ci.yml` from the same commit as the tag. Its publishing
-job has `needs: validate`: a failed, cancelled or skipped validation prevents that
-job from starting, including access to the production signing secrets.
+Every release publishes signed packages for Terraform and OpenTofu. This page
+explains what a release contains and how to verify a download before installing
+it. Maintainer procedures are out of scope; see
+[RELEASING.md](https://github.com/vmvarela/terraform-provider-github-enterprise/blob/master/RELEASING.md).
 
-The shared workflow runs Terraform and OpenTofu lifecycle tests, race detection,
-vet, build, formatting, module and documentation checks, and signed snapshot
-validation. `TF_REQUIRE_CLI=1` turns a missing integration CLI into a failure.
-GoReleaser is pinned to the same version in validation and publication.
+## What a release contains
 
-## Package checks
+Each `v*` release on
+[GitHub](https://github.com/vmvarela/terraform-provider-github-enterprise/releases)
+provides:
 
-Run `make package-check` on Linux amd64 with Go, GoReleaser 2.18.3, GPG, Python 3,
-Terraform 1.14.3 and OpenTofu 1.11.0 installed. The command:
+- one zip archive per platform: `linux`, `darwin` and `windows`, each for `amd64`
+  and `arm64`;
+- `<version>_SHA256SUMS` with the checksums of every archive and of the manifest;
+- `<version>_SHA256SUMS.sig`, the detached GPG signature of the checksum file;
+- `<version>_manifest.json`, the protocol-6 manifest read by Terraform.
 
-1. Creates an isolated, disposable GPG signing key and passphrase.
-2. Runs `goreleaser check` and builds signed snapshots with publication disabled.
-3. Verifies six zip archives, binary names and executable bits, the protocol-6
-   manifest, all seven SHA256 entries, and the detached signature against the
-   expected public-key fingerprint in a separate keyring.
-4. Installs the Linux amd64 package through a filesystem mirror under the actual
-   `vmvarela/github-enterprise` address, using each CLI's default registry host.
-5. Downloads the pinned official provider, validates the complete example and
-   loads both provider schemas. These checks do not call the enterprise API.
-6. Removes the disposable keyring and passphrase, including after failure.
+The provider implements protocol 6, supported by current Terraform and OpenTofu
+releases. It is validated with Terraform 1.14.3 and OpenTofu 1.11.0; other CLI
+versions have not been tested.
 
-The local mirror does not authenticate signatures itself; step 3 performs that
-verification explicitly before installation. The two clean consumer directories
-have no development overrides or inherited plugin caches. The build output stays
-in the ignored `dist/` directory for inspection. No production signing key is
-available to pull-request validation, including fork PRs.
+## Verify a download
+
+Set `VERSION` to the release you pinned, without the leading `v`, and download the
+archive, checksum file and signature from that release:
+
+```console
+VERSION=0.1.0
+BASE="https://github.com/vmvarela/terraform-provider-github-enterprise/releases/download/v$VERSION"
+curl -LO "$BASE/terraform-provider-github-enterprise_${VERSION}_SHA256SUMS"
+curl -LO "$BASE/terraform-provider-github-enterprise_${VERSION}_SHA256SUMS.sig"
+curl -LO "$BASE/terraform-provider-github-enterprise_${VERSION}_linux_amd64.zip"
+```
+
+Import the public key kept in this documentation set, then check the signature and
+the archive:
+
+```console
+curl -LO "https://raw.githubusercontent.com/vmvarela/terraform-provider-github-enterprise/v$VERSION/docs/guides/signing-key.asc"
+gpg --import signing-key.asc
+gpg --verify terraform-provider-github-enterprise_${VERSION}_SHA256SUMS.sig \
+  terraform-provider-github-enterprise_${VERSION}_SHA256SUMS
+sha256sum --check --ignore-missing terraform-provider-github-enterprise_${VERSION}_SHA256SUMS
+```
+
+The signature must report a good signature from `Victor M. Varela (GitHub
+Enterprise provider release) <vmvarela@gmail.com>` with the fingerprint below.
+Stop if it reports a different key or a bad signature, and report the release.
+On macOS, `shasum -a 256 --check` replaces `sha256sum`.
 
 ## Signing key
 
-Release artefacts are signed with one dedicated GPG key, kept separate from commit
-signing and from SSH keys.
+| Property | Value |
+| --- | --- |
+| Fingerprint | `3610 065D B825 0D31 A49E  C0D5 2845 88A6 1CDA 90B9` |
+| User ID | `Victor M. Varela (GitHub Enterprise provider release) <vmvarela@gmail.com>` |
+| Algorithm | RSA 4096, passphrase protected |
+| Expires | 2027-10-23 |
 
-- RSA 4096, passphrase protected, one year of validity from creation. Both registries
-  reject expired keys, so renew before expiry; a published version is never replaced.
-- User ID `Victor M. Varela (GitHub Enterprise provider release) <vmvarela@gmail.com>`.
-  The key is `3610 065D B825 0D31 A49E  C0D5 2845 88A6 1CDA 90B9`, valid until
-  2027-10-23. That fingerprint identifies it here and in the registry account settings.
-- The private key, its passphrase and the revocation certificate stay with the
-  maintainer: an encrypted export outside the repository plus an independent encrypted
-  backup. No private material is committed, logged or pasted into an issue.
-- Production values live in the repository secrets `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE`
-  and `GPG_FINGERPRINT`. The release job aborts while any of them is empty, and
-  pull-request validation never receives them.
-- Register the public key with each registry before publishing, and keep it in this
-  directory as `signing-key.asc` so consumers can verify a release on their own.
+A later release may use a renewed key. Each published version keeps the fingerprint
+that signed it: check the one printed with the version you downloaded instead of
+assuming this one.
 
-Consumers verify a published signature without any private material:
+## Versioning and immutability
 
-```console
-gpg --import signing-key.asc
-gpg --verify terraform-provider-github-enterprise_0.1.0_SHA256SUMS.sig \
-  terraform-provider-github-enterprise_0.1.0_SHA256SUMS
-```
+Versions follow `vMAJOR.MINOR.PATCH`, starting at `v0.1.0`. Within a minor
+version the provider preserves resource names, attribute meanings, defaults,
+ownership and import formats, as described in the
+[compatibility contract](https://github.com/vmvarela/terraform-provider-github-enterprise/blob/master/docs/guides/initial-contract.md).
 
-## Publication prerequisites
-
-Complete live acceptance (#4), review the [initial contract](initial-contract.md),
-and prepare the Registry registration and signing credentials (#6) before tagging.
-Prerelease tags such as `v0.1.0-rc.1` are marked as prereleases
-by GoReleaser; stable tags such as `v0.1.0` are marked as stable releases.
-
-The pipeline validation does not replace live acceptance or prove Registry
-indexing. After publishing, verify installation from the actual registry, signature
-verification, documentation rendering and coexistence with `integrations/github`.
+Published versions are immutable. Registry pages are rendered from the tagged
+commit, so a documentation or packaging correction ships in a later version and
+never replaces a published one. Prerelease tags such as `v0.1.0-rc.1` are marked
+as prereleases, are not offered as the latest version, and can be withdrawn before
+the stable release; do not pin them.
