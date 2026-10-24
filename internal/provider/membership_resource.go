@@ -15,7 +15,10 @@ import (
 	"github.com/vmvarela/terraform-provider-github-enterprise/internal/client"
 )
 
-var _ resource.ResourceWithImportState = &membershipResource{}
+var (
+	_ resource.ResourceWithImportState = &membershipResource{}
+	_ resource.ResourceWithModifyPlan  = &membershipResource{}
+)
 
 type membershipResource struct{ configuredResource }
 type membershipModel struct {
@@ -32,11 +35,14 @@ func (r *membershipResource) Metadata(_ context.Context, _ resource.MetadataRequ
 func (r *membershipResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Manages one direct team membership. Other members are unaffected. Do not use with IdP-managed team memberships.", Attributes: map[string]schema.Attribute{
 		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug/team_id/username.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-		"enterprise_slug": schema.StringAttribute{Required: true, MarkdownDescription: "Enterprise account slug.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+		"enterprise_slug": schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Enterprise account slug. Defaults to the provider-level enterprise_slug.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"team_id":         schema.Int64Attribute{Required: true, MarkdownDescription: "Numeric team ID. Remains stable when a team is renamed.", Validators: []validator.Int64{positiveID{}}, PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()}},
 		"username":        schema.StringAttribute{Required: true, MarkdownDescription: "GitHub username.", Validators: []validator.String{usernameRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"user_id":         schema.Int64Attribute{Computed: true, MarkdownDescription: "Numeric GitHub user ID."},
 	}}
+}
+func (r *membershipResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	applyEnterpriseSlugDefault(ctx, r.enterpriseSlug, req, resp)
 }
 func (r *membershipResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data membershipModel

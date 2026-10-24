@@ -16,9 +16,8 @@ Manages one direct team membership. Other members are unaffected. Do not use wit
 resource "github_enterprise_team_membership" "example" {
   provider = github-enterprise
 
-  enterprise_slug = "my-enterprise"
-  team_id         = github_enterprise_team.example.team_id
-  username        = "octocat"
+  team_id  = github_enterprise_team.example.team_id
+  username = "octocat"
 }
 ```
 
@@ -26,7 +25,7 @@ resource "github_enterprise_team_membership" "example" {
 
 | Attribute | Type | Requirement | Description |
 | --- | --- | --- | --- |
-| `enterprise_slug` | `String` | Required | Enterprise account slug. |
+| `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `id` | `String` | Read-only | enterprise_slug/team_id/username. |
 | `team_id` | `Number` | Required | Numeric team ID. Remains stable when a team is renamed. |
 | `user_id` | `Number` | Read-only | Numeric GitHub user ID. |

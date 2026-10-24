@@ -8,12 +8,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func enterpriseDataAttribute() schema.StringAttribute {
-	return schema.StringAttribute{Required: true, MarkdownDescription: "Enterprise account slug.", Validators: []validator.String{enterpriseRule()}}
+	return schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Enterprise account slug. Defaults to the provider-level enterprise_slug.", Validators: []validator.String{enterpriseRule()}}
 }
 func teamIDDataAttribute() schema.Int64Attribute {
 	return schema.Int64Attribute{Required: true, MarkdownDescription: "Numeric enterprise team ID.", Validators: []validator.Int64{positiveID{}}}
@@ -48,6 +49,12 @@ func (d *teamDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	enterprise, ok := d.enterpriseSlugOr(data.Enterprise)
+	if !ok {
+		resp.Diagnostics.AddAttributeError(path.Root("enterprise_slug"), "Missing enterprise slug", missingSlug)
+		return
+	}
+	data.Enterprise = enterprise
 	t, err := d.client.TeamBySlug(ctx, data.Enterprise.ValueString(), data.Slug.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Read enterprise team", err.Error())
@@ -86,6 +93,12 @@ func (d *teamsDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	enterprise, ok := d.enterpriseSlugOr(data.Enterprise)
+	if !ok {
+		resp.Diagnostics.AddAttributeError(path.Root("enterprise_slug"), "Missing enterprise slug", missingSlug)
+		return
+	}
+	data.Enterprise = enterprise
 	teams, err := d.client.Teams(ctx, data.Enterprise.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("List enterprise teams", err.Error())
@@ -134,6 +147,12 @@ func (d *membershipDataSource) Read(ctx context.Context, req datasource.ReadRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	enterprise, ok := d.enterpriseSlugOr(data.Enterprise)
+	if !ok {
+		resp.Diagnostics.AddAttributeError(path.Root("enterprise_slug"), "Missing enterprise slug", missingSlug)
+		return
+	}
+	data.Enterprise = enterprise
 	u, err := d.client.Membership(ctx, data.Enterprise.ValueString(), data.TeamID.ValueInt64(), data.Username.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Read enterprise team membership", err.Error())
@@ -162,6 +181,12 @@ func (d *organizationsDataSource) Read(ctx context.Context, req datasource.ReadR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	enterprise, ok := d.enterpriseSlugOr(data.Enterprise)
+	if !ok {
+		resp.Diagnostics.AddAttributeError(path.Root("enterprise_slug"), "Missing enterprise slug", missingSlug)
+		return
+	}
+	data.Enterprise = enterprise
 	orgs, err := d.client.Organizations(ctx, data.Enterprise.ValueString(), data.TeamID.ValueInt64())
 	if err != nil {
 		resp.Diagnostics.AddError("Read enterprise team organizations", err.Error())

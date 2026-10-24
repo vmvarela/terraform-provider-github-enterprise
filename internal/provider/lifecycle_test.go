@@ -13,8 +13,8 @@ import (
 func TestPartialOrganizationUpdateRetainsObservedState(t *testing.T) {
 	ctx := context.Background()
 	api, base := newAPI(t)
-	api.team = &client.Team{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: new("selected")}
-	api.orgs["org-one"] = true
+	api.store("acme").team = &client.Team{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: new("selected")}
+	api.store("acme").orgs["org-one"] = true
 	api.failRemoval = true
 	c, err := client.New(base, "mock-token", client.DefaultAPIVersion)
 	if err != nil {
@@ -62,8 +62,8 @@ func TestPartialOrganizationUpdateRetainsObservedState(t *testing.T) {
 	}
 	api.mu.Lock()
 	defer api.mu.Unlock()
-	if len(api.orgs) != 1 || !api.orgs["org-two"] {
-		t.Fatalf("retry failed to reconcile: %v", api.orgs)
+	if len(api.store("acme").orgs) != 1 || !api.store("acme").orgs["org-two"] {
+		t.Fatalf("retry failed to reconcile: %v", api.store("acme").orgs)
 	}
 }
 

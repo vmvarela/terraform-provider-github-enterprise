@@ -15,8 +15,6 @@ Lists all enterprise teams, following every pagination page. Missing organizatio
 ```hcl
 data "github_enterprise_teams" "example" {
   provider = github-enterprise
-
-  enterprise_slug = "my-enterprise"
 }
 ```
 
@@ -24,7 +22,7 @@ data "github_enterprise_teams" "example" {
 
 | Attribute | Type | Requirement | Description |
 | --- | --- | --- | --- |
-| `enterprise_slug` | `String` | Required | Enterprise account slug. |
+| `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `id` | `String` | Read-only | Enterprise slug. |
 | `teams` | `list(object)` | Read-only | Enterprise teams in API order. |
 

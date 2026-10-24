@@ -16,8 +16,7 @@ Looks up an enterprise team by slug.
 data "github_enterprise_team" "example" {
   provider = github-enterprise
 
-  enterprise_slug = "my-enterprise"
-  slug            = "ent:platform"
+  slug = "ent:platform"
 }
 ```
 
@@ -26,7 +25,7 @@ data "github_enterprise_team" "example" {
 | Attribute | Type | Requirement | Description |
 | --- | --- | --- | --- |
 | `description` | `String` | Read-only | Team description. |
-| `enterprise_slug` | `String` | Required | Enterprise account slug. |
+| `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `group_id` | `String` | Read-only | Linked IdP group ID, or an empty string. |
 | `id` | `String` | Read-only | enterprise_slug/team_id. |
 | `name` | `String` | Read-only | Team name. |

@@ -6,4 +6,6 @@ terraform {
   }
 }
 
-provider "github-enterprise" {}
+provider "github-enterprise" {
+  enterprise_slug = "my-enterprise"
+}

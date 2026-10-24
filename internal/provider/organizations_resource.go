@@ -19,7 +19,10 @@ import (
 	"github.com/vmvarela/terraform-provider-github-enterprise/internal/client"
 )
 
-var _ resource.ResourceWithImportState = &organizationsResource{}
+var (
+	_ resource.ResourceWithImportState = &organizationsResource{}
+	_ resource.ResourceWithModifyPlan  = &organizationsResource{}
+)
 
 type organizationsResource struct{ configuredResource }
 type organizationsModel struct {
@@ -35,7 +38,7 @@ func (r *organizationsResource) Metadata(_ context.Context, _ resource.MetadataR
 func (r *organizationsResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Authoritatively manages all organization assignments for a team in selected mode. Omitted organizations are removed. Use only one instance per team; import existing assignments first. Creation and updates require GitHub to return organization_selection_type so selected mode can be verified.", Attributes: map[string]schema.Attribute{
 		"id":                 schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug/team_id.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-		"enterprise_slug":    schema.StringAttribute{Required: true, MarkdownDescription: "Enterprise account slug.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+		"enterprise_slug":    schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Enterprise account slug. Defaults to the provider-level enterprise_slug.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"team_id":            schema.Int64Attribute{Required: true, MarkdownDescription: "Numeric team ID.", Validators: []validator.Int64{positiveID{}}, PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()}},
 		"organization_slugs": schema.SetAttribute{Required: true, ElementType: types.StringType, MarkdownDescription: "Complete set of lowercase organization slugs. An empty set removes all assignments.", Validators: []validator.Set{organizationSetRule{}}},
 	}}
@@ -130,6 +133,9 @@ func (r *organizationsResource) readOrganizations(ctx context.Context, data *org
 	var ds diag.Diagnostics
 	data.Organizations, ds = types.SetValueFrom(ctx, types.StringType, organizationNames(orgs))
 	return ds
+}
+func (r *organizationsResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	applyEnterpriseSlugDefault(ctx, r.enterpriseSlug, req, resp)
 }
 func (r *organizationsResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data organizationsModel

@@ -21,7 +21,9 @@ terraform {
   }
 }
 
-provider "github-enterprise" {}
+provider "github-enterprise" {
+  enterprise_slug = "my-enterprise"
+}
 ```
 
 ## Schema
@@ -30,6 +32,7 @@ provider "github-enterprise" {}
 | --- | --- | --- | --- |
 | `api_version` | `String` | Optional | GitHub API version. Defaults to 2026-03-10. |
 | `base_url` | `String` | Optional | API base URL. Defaults to GITHUB_ENTERPRISE_BASE_URL, then https://api.github.com/. Supports dedicated api.SUBDOMAIN.ghe.com endpoints. |
+| `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to GITHUB_ENTERPRISE_SLUG and is inherited by every resource and data source that omits enterprise_slug. A value set on the block wins over this one. |
 | `token` | `String` | Optional | Classic PAT or enterprise GitHub App access token. Defaults to GITHUB_ENTERPRISE_TOKEN, then GITHUB_TOKEN. Prefer environment variables to keep credentials out of configuration. |
 
 See the [provider guide](https://github.com/vmvarela/terraform-provider-github-enterprise#authentication) for authentication, ownership and compatibility requirements.
