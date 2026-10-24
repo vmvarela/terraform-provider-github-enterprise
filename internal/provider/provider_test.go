@@ -48,9 +48,7 @@ func TestProviderSchema(t *testing.T) {
 // enterprise credentials and never calls api.github.com.
 type enterpriseAPI struct {
 	mu                                      sync.Mutex
-	team                                    *client.Team
-	members                                 map[string]bool
-	orgs                                    map[string]bool
+	stores                                  map[string]*enterpriseState
 	creates, memberWrites, assignmentWrites int
 	deny                                    bool
 	failRemoval                             bool
@@ -59,9 +57,26 @@ type enterpriseAPI struct {
 	lastUpdate map[string]any
 }
 
+// enterpriseState is the remote data of one enterprise, so each slug is
+// routed to its own team instead of one shared fixture store.
+type enterpriseState struct {
+	team    *client.Team
+	members map[string]bool
+	orgs    map[string]bool
+}
+
+func (a *enterpriseAPI) store(slug string) *enterpriseState {
+	st := a.stores[slug]
+	if st == nil {
+		st = &enterpriseState{members: map[string]bool{}, orgs: map[string]bool{}}
+		a.stores[slug] = st
+	}
+	return st
+}
+
 func newAPI(t *testing.T) (*enterpriseAPI, string) {
 	t.Helper()
-	a := &enterpriseAPI{members: map[string]bool{}, orgs: map[string]bool{}}
+	a := &enterpriseAPI{stores: map[string]*enterpriseState{}}
 	s := httptest.NewServer(http.HandlerFunc(a.serve))
 	t.Cleanup(s.Close)
 	return a, s.URL
@@ -84,44 +99,45 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	st := a.store(segments[0])
 	parts := segments[2:]
 	if len(parts) == 0 {
 		if r.Method == "GET" {
 			teams := []client.Team{}
-			if a.team != nil {
-				teams = append(teams, *a.team)
+			if st.team != nil {
+				teams = append(teams, *st.team)
 			}
 			_ = json.NewEncoder(w).Encode(teams)
 			return
 		}
 		if r.Method == "POST" {
 			a.creates++
-			a.team = &client.Team{ID: 42}
-			a.updateTeam(r)
+			st.team = &client.Team{ID: 42}
+			a.updateTeam(st, r)
 			w.WriteHeader(201)
-			_ = json.NewEncoder(w).Encode(a.team)
+			_ = json.NewEncoder(w).Encode(st.team)
 			return
 		}
 	}
-	if a.team == nil {
+	if st.team == nil {
 		http.NotFound(w, r)
 		return
 	}
-	if parts[0] != "42" && parts[0] != a.team.Slug {
+	if parts[0] != "42" && parts[0] != st.team.Slug {
 		http.NotFound(w, r)
 		return
 	}
 	if len(parts) == 1 {
 		switch r.Method {
 		case "GET":
-			_ = json.NewEncoder(w).Encode(a.team)
+			_ = json.NewEncoder(w).Encode(st.team)
 		case "PATCH":
-			a.updateTeam(r)
-			_ = json.NewEncoder(w).Encode(a.team)
+			a.updateTeam(st, r)
+			_ = json.NewEncoder(w).Encode(st.team)
 		case "DELETE":
-			a.team = nil
-			a.members = map[string]bool{}
-			a.orgs = map[string]bool{}
+			st.team = nil
+			st.members = map[string]bool{}
+			st.orgs = map[string]bool{}
 			w.WriteHeader(204)
 		default:
 			http.Error(w, "method", 405)
@@ -132,20 +148,20 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 		user := parts[2]
 		switch r.Method {
 		case "PUT":
-			if a.team.GroupID != "" {
+			if st.team.GroupID != "" {
 				http.Error(w, "IdP membership", 422)
 				return
 			}
-			a.members[user] = true
+			st.members[user] = true
 			a.memberWrites++
 			w.WriteHeader(201)
 		case "GET":
-			if !a.members[user] {
+			if !st.members[user] {
 				http.NotFound(w, r)
 				return
 			}
 		case "DELETE":
-			delete(a.members, user)
+			delete(st.members, user)
 			a.memberWrites++
 			w.WriteHeader(204)
 			return
@@ -158,7 +174,7 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	if parts[1] == "organizations" {
 		if len(parts) == 3 && r.Method == "POST" {
-			if a.team.OrganizationSelectionType == nil || *a.team.OrganizationSelectionType != "selected" {
+			if st.team.OrganizationSelectionType == nil || *st.team.OrganizationSelectionType != "selected" {
 				http.Error(w, "mode", 422)
 				return
 			}
@@ -173,9 +189,9 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			for _, s := range body.Slugs {
 				if parts[2] == "add" {
-					a.orgs[s] = true
+					st.orgs[s] = true
 				} else {
-					delete(a.orgs, s)
+					delete(st.orgs, s)
 				}
 			}
 			a.assignmentWrites++
@@ -186,7 +202,7 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		orgs := []client.Organization{}
 		names := []string{}
-		for s := range a.orgs {
+		for s := range st.orgs {
 			names = append(names, s)
 		}
 		sort.Strings(names)
@@ -198,30 +214,30 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	http.NotFound(w, r)
 }
-func (a *enterpriseAPI) updateTeam(r *http.Request) {
+func (a *enterpriseAPI) updateTeam(st *enterpriseState, r *http.Request) {
 	var body map[string]any
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	a.lastUpdate = body
 	if v, ok := body["name"].(string); ok {
-		a.team.Name = v
-		a.team.Slug = "ent:" + strings.ReplaceAll(strings.ToLower(v), " ", "-")
+		st.team.Name = v
+		st.team.Slug = "ent:" + strings.ReplaceAll(strings.ToLower(v), " ", "-")
 	}
 	if v, ok := body["description"].(string); ok {
-		a.team.Description = v
+		st.team.Description = v
 	}
 	if v, ok := body["organization_selection_type"].(string); ok {
-		a.team.OrganizationSelectionType = new(v)
+		st.team.OrganizationSelectionType = new(v)
 	}
 	if v, ok := body["notification_setting"].(string); ok {
-		a.team.NotificationSetting = new(v)
+		st.team.NotificationSetting = new(v)
 	}
 	if _, ok := body["group_id"]; ok {
 		// Simulates GitHub: sending group_id explicitly, including a null
 		// unlink, replaces direct team membership.
-		a.members = map[string]bool{}
-		a.team.GroupID = ""
+		st.members = map[string]bool{}
+		st.team.GroupID = ""
 		if s, ok := body["group_id"].(string); ok {
-			a.team.GroupID = s
+			st.team.GroupID = s
 		}
 	}
 }
@@ -306,7 +322,7 @@ func TestTerraformLifecycle(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{ProtoV6ProviderFactories: factories, CheckDestroy: func(_ *terraform.State) error {
 		api.mu.Lock()
 		defer api.mu.Unlock()
-		if api.team != nil || len(api.members) != 0 || len(api.orgs) != 0 {
+		if api.store("acme").team != nil || len(api.store("acme").members) != 0 || len(api.store("acme").orgs) != 0 {
 			return fmt.Errorf("remote resources remain")
 		}
 		return nil
@@ -322,8 +338,8 @@ func TestTerraformLifecycle(t *testing.T) {
 			if api.creates != 1 || api.memberWrites != 1 {
 				t.Errorf("rename recreated team or membership: creates=%d writes=%d", api.creates, api.memberWrites)
 			}
-			api.orgs["external-org"] = true
-			delete(api.members, "octocat")
+			api.store("acme").orgs["external-org"] = true
+			delete(api.store("acme").members, "octocat")
 		}, Check: resource.TestCheckResourceAttr("github_enterprise_team_organizations.test", "organization_slugs.#", "1")},
 		{Config: config(base, "New Platform", "", "", `[]`), Check: resource.TestCheckResourceAttr("github_enterprise_team_organizations.test", "organization_slugs.#", "0")},
 	}})
@@ -382,6 +398,22 @@ data "github_enterprise_teams" "test" {
 			if api.creates != 2 {
 				return fmt.Errorf("changing the provider slug did not replace the team: creates=%d", api.creates)
 			}
+			old, next := api.store("acme"), api.store("acme-beta")
+			if old.team != nil || len(old.members) != 0 || len(old.orgs) != 0 {
+				return fmt.Errorf("old enterprise acme still holds resources: team=%v members=%v orgs=%v", old.team, old.members, old.orgs)
+			}
+			if next.team == nil {
+				return fmt.Errorf("new enterprise acme-beta has no team")
+			}
+			if next.team.ID != 42 {
+				return fmt.Errorf("new enterprise acme-beta team ID = %d, want 42", next.team.ID)
+			}
+			if !next.members["octocat"] {
+				return fmt.Errorf("new enterprise acme-beta is missing the octocat membership: %v", next.members)
+			}
+			if len(next.orgs) != 1 || !next.orgs["org-one"] {
+				return fmt.Errorf("new enterprise acme-beta is missing organization org-one: %v", next.orgs)
+			}
 			return nil
 		})},
 	}})
@@ -395,8 +427,8 @@ func TestTerraformOutOfBandRename(t *testing.T) {
 		{Config: config(base, "Platform", "", "", `[]`), PreConfig: func() {
 			api.mu.Lock()
 			defer api.mu.Unlock()
-			api.team.Name = "Renamed elsewhere"
-			api.team.Slug = "ent:renamed-elsewhere"
+			api.store("acme").team.Name = "Renamed elsewhere"
+			api.store("acme").team.Slug = "ent:renamed-elsewhere"
 		}, Check: resource.TestCheckResourceAttr("github_enterprise_team.test", "slug", "ent:platform")},
 	}})
 }
@@ -422,7 +454,7 @@ name="Platform"
 		{Config: teamConfig(""), Check: func(_ *terraform.State) error {
 			api.mu.Lock()
 			defer api.mu.Unlock()
-			if api.creates != 1 || api.team.GroupID != "" {
+			if api.creates != 1 || api.store("acme").team.GroupID != "" {
 				return fmt.Errorf("group was not unlinked in place")
 			}
 			return nil
@@ -469,7 +501,7 @@ group_id=%q
 			if _, sent := api.lastUpdate["group_id"]; sent {
 				return fmt.Errorf("unrelated update sent group_id: %v", api.lastUpdate)
 			}
-			if !api.members["octocat"] {
+			if !api.store("acme").members["octocat"] {
 				return fmt.Errorf("direct member lost on unrelated update")
 			}
 			return nil
@@ -482,15 +514,15 @@ group_id=%q
 		{Config: cfg("Renamed Platform", "group-123", ""), PreConfig: func() {
 			api.mu.Lock()
 			defer api.mu.Unlock()
-			api.members["out-of-band-member"] = true
+			api.store("acme").members["out-of-band-member"] = true
 		}, Check: func(_ *terraform.State) error {
 			api.mu.Lock()
 			defer api.mu.Unlock()
 			if v, sent := api.lastUpdate["group_id"]; !sent || v != "group-123" {
 				return fmt.Errorf("expected an explicit group_id value, got %v", api.lastUpdate)
 			}
-			if len(api.members) != 0 {
-				return fmt.Errorf("group change did not clear the present direct member: %v", api.members)
+			if len(api.store("acme").members) != 0 {
+				return fmt.Errorf("group change did not clear the present direct member: %v", api.store("acme").members)
 			}
 			return nil
 		}},
@@ -508,8 +540,8 @@ group_id=%q
 func TestTerraformRefusesToOverwriteOrganizations(t *testing.T) {
 	requireTerraform(t)
 	api, base := newAPI(t)
-	api.team = &client.Team{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: new("selected"), NotificationSetting: new("notifications_enabled")}
-	api.orgs["existing-org"] = true
+	api.store("acme").team = &client.Team{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: new("selected"), NotificationSetting: new("notifications_enabled")}
+	api.store("acme").orgs["existing-org"] = true
 	cfg := fmt.Sprintf(`provider "github-enterprise" {
  token="mock-token"
 base_url=%q
@@ -524,7 +556,7 @@ organization_slugs=["org-one"]
 	resource.UnitTest(t, resource.TestCase{ProtoV6ProviderFactories: factories, Steps: []resource.TestStep{{Config: cfg, ExpectError: regexp.MustCompile("Existing organization assignments")}}})
 	api.mu.Lock()
 	defer api.mu.Unlock()
-	if api.assignmentWrites != 0 || !api.orgs["existing-org"] {
+	if api.assignmentWrites != 0 || !api.store("acme").orgs["existing-org"] {
 		t.Fatal("existing assignments changed")
 	}
 }
