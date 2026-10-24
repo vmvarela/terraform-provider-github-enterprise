@@ -55,6 +55,10 @@ type enterpriseAPI struct {
 	// lastUpdate holds the decoded body of the most recent team write so
 	// tests can assert which fields were sent.
 	lastUpdate map[string]any
+	// removals holds the path of every destructive request, so a deletion
+	// sent to the wrong enterprise is visible even when deleting the team
+	// clears its relations anyway.
+	removals []string
 }
 
 // enterpriseState is the remote data of one enterprise, so each slug is
@@ -100,6 +104,9 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	st := a.store(segments[0])
+	if r.Method == "DELETE" || strings.HasSuffix(r.URL.Path, "/organizations/remove") {
+		a.removals = append(a.removals, r.URL.Path)
+	}
 	parts := segments[2:]
 	if len(parts) == 0 {
 		if r.Method == "GET" {
@@ -388,6 +395,9 @@ data "github_enterprise_teams" "test" {
 			resource.TestCheckResourceAttr("github_enterprise_team_membership.test", "enterprise_slug", slug),
 			resource.TestCheckResourceAttr("github_enterprise_team_organizations.test", "enterprise_slug", slug),
 			resource.TestCheckResourceAttr("data.github_enterprise_teams.test", "enterprise_slug", slug),
+			// A data source that reported the new slug but queried the old
+			// enterprise would return no teams after the migration.
+			resource.TestCheckResourceAttr("data.github_enterprise_teams.test", "teams.#", "1"),
 		)
 	}
 	resource.UnitTest(t, resource.TestCase{ProtoV6ProviderFactories: factories, Steps: []resource.TestStep{
@@ -413,6 +423,23 @@ data "github_enterprise_teams" "test" {
 			}
 			if len(next.orgs) != 1 || !next.orgs["org-one"] {
 				return fmt.Errorf("new enterprise acme-beta is missing organization org-one: %v", next.orgs)
+			}
+			if len(api.removals) == 0 {
+				return fmt.Errorf("no removal was recorded, so the old enterprise was never addressed")
+			}
+			var memberRemoval, orgRemoval bool
+			for _, path := range api.removals {
+				if !strings.HasPrefix(path, "/enterprises/acme/") {
+					return fmt.Errorf("removal hit the wrong enterprise: %s", path)
+				}
+				memberRemoval = memberRemoval || strings.Contains(path, "/memberships/")
+				orgRemoval = orgRemoval || strings.HasSuffix(path, "/organizations/remove")
+			}
+			// Deleting the team also clears its relations, so a membership or
+			// organization delete aimed at the new enterprise would otherwise
+			// hide behind that cleanup.
+			if !memberRemoval || !orgRemoval {
+				return fmt.Errorf("membership or organization removal missed the old enterprise: %v", api.removals)
 			}
 			return nil
 		})},
