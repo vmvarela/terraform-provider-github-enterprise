@@ -60,10 +60,18 @@ def main():
             schemas = json.loads(run(cli, "providers", "schema", "-json", cwd=work, env=env))["provider_schemas"]
             ours = schemas[f"{host}/vmvarela/github-enterprise"]
             official = schemas[f"{host}/integrations/github"]
-            expected_resources = {"github_enterprise_team", "github_enterprise_team_membership", "github_enterprise_team_organizations"}
-            expected_data = expected_resources | {"github_enterprise_teams"}
+            expected_resources = {
+                "github_enterprise_team", "github_enterprise_team_membership",
+                "github_enterprise_team_organizations", "github_enterprise_cost_center",
+                "github_enterprise_cost_center_resources",
+            }
+            expected_data = {
+                "github_enterprise_team", "github_enterprise_team_membership",
+                "github_enterprise_team_organizations", "github_enterprise_teams",
+                "github_enterprise_cost_center", "github_enterprise_cost_centers",
+            }
             if set(ours["resource_schemas"]) != expected_resources or set(ours["data_source_schemas"]) != expected_data:
-                raise ValueError("Installed package does not match the initial provider contract")
+                raise ValueError("Installed package does not match the provider contract")
             if "github_enterprise" not in official["data_source_schemas"]:
                 raise ValueError("Official provider did not load alongside the enterprise provider")
             print(f"{cli}: installed {host}/vmvarela/github-enterprise {version}; validated complete example and both provider schemas.")
