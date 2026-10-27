@@ -1,17 +1,17 @@
 ---
 page_title: "Compatibility and lifecycle"
 description: |-
-  Ownership, drift behaviour, import requirements and compatibility commitments for the v0.1 release line.
+  Ownership, drift behaviour, import requirements and compatibility commitments for the v0.2 release line.
 ---
 
 # Compatibility and lifecycle
 
 This page defines what each resource owns, how the provider behaves when GitHub
-returns incomplete data, and which compatibility commitments apply to the v0.1
+returns incomplete data, and which compatibility commitments apply to the v0.2
 release line. Release mechanics are covered by the
 [release verification guide](https://github.com/vmvarela/terraform-provider-github-enterprise/blob/master/docs/guides/releases.md).
 
-The provider complements `integrations/github` with Enterprise Teams capabilities
+The provider complements `integrations/github` with enterprise teams and cost centers
 missing from the official provider. Its source is `vmvarela/github-enterprise`, its
 local name is `github-enterprise`, and resource and data source types start with
 `github_enterprise_`. The prefix is shared with some official resources: every
@@ -25,11 +25,12 @@ Terraform infers the official provider from the type name.
 | `github_enterprise_team` | One enterprise team | `enterprise_slug/team_id` |
 | `github_enterprise_team_membership` | One direct member; other members are untouched | `enterprise_slug/team_id/username` |
 | `github_enterprise_team_organizations` | The complete organization assignment set | `enterprise_slug/team_id` |
-| `github_enterprise_cost_center` (next minor release) | One cost center; destroy archives it | `enterprise_slug/cost_center_id` |
-| `github_enterprise_cost_center_resources` (next minor release) | The complete cost-center assignment set across all supported categories | `enterprise_slug/cost_center_id` |
+| `github_enterprise_cost_center` (from v0.2.0) | One cost center; destroy archives it | `enterprise_slug/cost_center_id` |
+| `github_enterprise_cost_center_resources` (from v0.2.0) | The complete cost-center assignment set across all supported categories | `enterprise_slug/cost_center_id` |
 
 Read-only data sources are `github_enterprise_team`, `github_enterprise_teams`,
-`github_enterprise_team_membership`, and `github_enterprise_team_organizations`.
+`github_enterprise_team_membership`, `github_enterprise_team_organizations`,
+`github_enterprise_cost_center`, and `github_enterprise_cost_centers`.
 A missing single team or membership is an error; list lookups may return empty
 collections. An existing membership reports `is_member = true`.
 
@@ -58,9 +59,9 @@ managing them. Omitted organizations are removed; an empty set removes all.
 Destroy removes all current assignments, including changes made outside Terraform.
 Partial failures retain observed assignments so a later plan can reconcile them.
 
-### Cost-center additions for the next minor release
+### Cost centers from v0.2.0
 
-These additions are not included in v0.1.0. Cost centers have opaque string IDs,
+Cost centers are available from v0.2.0, not in v0.1.0. They have opaque string IDs,
 not numeric team IDs. Renaming preserves identity; archiving is not a hard delete.
 Refresh treats an explicitly deleted cost center as absent. The single/list
 `github_enterprise_cost_center` and `github_enterprise_cost_centers` data sources
@@ -94,8 +95,8 @@ See the [API authentication notice](https://docs.github.com/en/enterprise-cloud@
 ## Compatibility
 
 The provider targets GitHub Enterprise Cloud. No GitHub Enterprise Server support
-is claimed, and cost centers, SCIM and billing data sources are outside the v0.1
-scope. The default API version is `2026-03-10`.
+is claimed. Cost centers were added in v0.2.0; SCIM and billing usage data sources
+remain outside its scope. The default API version is `2026-03-10`.
 
 Packages are built for Linux, macOS and Windows on amd64 and arm64. Releases are
 validated with Terraform 1.14.3 and OpenTofu 1.11.0 on Linux; cross-compilation
