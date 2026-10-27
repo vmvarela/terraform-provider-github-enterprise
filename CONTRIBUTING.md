@@ -77,6 +77,36 @@ Suites and required fixtures:
   `<ORG_A>,<ORG_B>`, confirming both are dedicated test organizations. Exercises
   assignment drift reconciliation, authoritative set removal (`[A,B]` → `[A]`), the
   empty set and resource deletion on the test-created team only.
+- `TestAccCostCenter`: creates a uniquely named cost center, reads both cost-center
+  data sources, renames it, imports it and checks its stable opaque ID. Destroy
+  archives it; **each run leaves an archived record**, not a hard-deleted object.
+- `TestAccCostCenterResources`: additionally requires at least one disposable,
+  initially unassigned billing fixture. Set any of
+  `GITHUB_ENTERPRISE_TEST_CC_USER`, `GITHUB_ENTERPRISE_TEST_CC_ORG`,
+  `GITHUB_ENTERPRISE_TEST_CC_REPO` or `GITHUB_ENTERPRISE_TEST_CC_TEAM`, with each
+  supplied value repeated exactly in its matching `_CONFIRM` variable in the same
+  command. Values must be the exact identifiers the billing API accepts; repository
+  and enterprise-team formats remain unverified. The suite creates and verifies a
+  new cost center before assigning fixtures, imports the assignment set, empties it
+  and archives the test-created center. This changes real billing attribution:
+  never use production users, organizations, repositories or teams as fixtures.
+
+Cost-center suites require enterprise-wide billing visibility: use a classic PAT
+with `manage_billing:enterprise` held by an enterprise owner or billing manager.
+Organization-owner tokens cannot establish cross-center exclusivity. GitHub App
+Enterprise billing permission is not generally available; verify that the target
+enterprise can grant it and that the required operations work before using an App
+token. Fine-grained PATs cannot call these endpoints. No cost-center live run has
+been recorded yet.
+
+For cost centers, capture the baseline of both active and deleted IDs before
+creation and accept only a newly returned ID absent from it. Verify that exact ID
+is archived and empty afterward; a test-only provider guard refuses to archive
+baseline or empty IDs even during automatic teardown. Never adopt or clean up by
+name. Preflight refuses
+already-assigned fixtures but is not atomic with concurrent external writes. If a
+run fails or is interrupted, inspect its exact ID, state and assignments manually;
+do not rerun blindly or sweep unrelated cost centers.
 
 Safety model: a read-only listing of existing team IDs is captured before creation,
 and only a team whose numeric ID is absent from that baseline is accepted; destroy
@@ -85,7 +115,7 @@ name, and import steps use only IDs from the same test's state. There is no
 sweeper: if the test process is killed during a network-ambiguous step, the team can
 remain — inspect the enterprise and resolve it manually rather than guessing.
 
-All three suites passed against `api.github.com` on 2026-10-19 using a classic PAT
+All three team suites passed against `api.github.com` on 2026-10-19 using a classic PAT
 and API version `2026-03-10`. Live coexistence with `integrations/github` 6.13.0
 was verified on 2026-10-23 through `examples/complete`. GitHub App tokens, IdP group
 lifecycle, and data-residency hosts remain unverified; record a new result here when
