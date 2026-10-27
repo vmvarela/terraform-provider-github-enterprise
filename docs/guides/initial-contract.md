@@ -25,6 +25,8 @@ Terraform infers the official provider from the type name.
 | `github_enterprise_team` | One enterprise team | `enterprise_slug/team_id` |
 | `github_enterprise_team_membership` | One direct member; other members are untouched | `enterprise_slug/team_id/username` |
 | `github_enterprise_team_organizations` | The complete organization assignment set | `enterprise_slug/team_id` |
+| `github_enterprise_cost_center` (next minor release) | One cost center; destroy archives it | `enterprise_slug/cost_center_id` |
+| `github_enterprise_cost_center_resources` (next minor release) | The complete cost-center assignment set across all supported categories | `enterprise_slug/cost_center_id` |
 
 Read-only data sources are `github_enterprise_team`, `github_enterprise_teams`,
 `github_enterprise_team_membership`, and `github_enterprise_team_organizations`.
@@ -33,7 +35,7 @@ collections. An existing membership reports `is_member = true`.
 
 ## Identity and drift
 
-Relationships use positive numeric team IDs, never slugs. Slugs may change during
+Team relationships use positive numeric team IDs, never slugs. Slugs may change during
 renames and may be reused by another team. A failed slug lookup after a positive
 ID match is inconclusive: retry the operation, retaining the existing state.
 GitHub can mask authorization failures as 404, so verify token access before
@@ -55,6 +57,39 @@ Only one assignment resource may own a team. Import existing assignments before
 managing them. Omitted organizations are removed; an empty set removes all.
 Destroy removes all current assignments, including changes made outside Terraform.
 Partial failures retain observed assignments so a later plan can reconcile them.
+
+### Cost-center additions for the next minor release
+
+These additions are not included in v0.1.0. Cost centers have opaque string IDs,
+not numeric team IDs. Renaming preserves identity; archiving is not a hard delete.
+Refresh treats an explicitly deleted cost center as absent. The single/list
+`github_enterprise_cost_center` and `github_enterprise_cost_centers` data sources
+expose the API's raw resource types and names.
+
+The cost-center resource manages its name only. One `cost_center_resources`
+resource owns all four assignment categories: `users`, `organizations`,
+`repositories` and `enterprise_teams`. Omitted categories are empty. Import
+existing assignments first; destroy removes every current assignment, including
+out-of-band additions. Unknown resource types prevent reconciliation rather than
+being silently ignored. Do not create overlapping Terraform bindings.
+
+Adding a resource can move its billing from another cost center. The provider
+checks other active centers before additions and rejects observed conflicts.
+Use an enterprise owner or billing manager with visibility of the whole
+enterprise; limited organization-owner visibility cannot establish exclusivity.
+Concurrent external changes are not atomic with this check. Unexpected
+reassignments and partial failures require inspection, not blind retries.
+
+Supply exact billing API resource identifiers. The public API does not fully
+specify repository and enterprise-team formats, and their live behavior has not
+been verified. Budgets, analytics and AI credit pool settings are not managed.
+
+Cost centers require a classic PAT or OAuth access token with
+`manage_billing:enterprise`. Fine-grained PATs cannot call these endpoints.
+GitHub App billing authentication is not generally available: generated
+permission tables do not prove that the enterprise can grant Enterprise billing
+permission. Verify availability and the required operations before using an App.
+See the [API authentication notice](https://docs.github.com/en/enterprise-cloud@latest/rest/billing/cost-centers#authentication).
 
 ## Compatibility
 

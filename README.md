@@ -1,8 +1,8 @@
 # Terraform Provider for GitHub Enterprise
 
-A focused Terraform and OpenTofu provider for GitHub Enterprise Cloud administration. Use it alongside [`integrations/github`](https://registry.terraform.io/providers/integrations/github/latest/docs): keep repositories and organizations there, and manage enterprise teams here.
+A focused Terraform and OpenTofu provider for GitHub Enterprise Cloud administration. Use it alongside [`integrations/github`](https://registry.terraform.io/providers/integrations/github/latest/docs): keep repositories and organizations there, and manage enterprise teams and cost centers here.
 
-**Status:** published as version 0.1.0 in the Terraform and OpenTofu registries. It manages enterprise teams only: repositories and organizations stay in `integrations/github`. A classic PAT against `api.github.com`, all three resources and four data sources, and coexistence with `integrations/github` are verified against a test enterprise. GitHub App tokens, IdP group lifecycle and data-residency hosts are not; see the [compatibility contract](docs/guides/initial-contract.md).
+**Status:** published as version 0.1.0 in the Terraform and OpenTofu registries. That release manages enterprise teams only. The source adds cost centers for the next minor release; it does not make them available in 0.1.0. The team resources and data sources, a classic PAT against `api.github.com`, and coexistence with `integrations/github` are verified against a test enterprise. Cost centers, GitHub App tokens, IdP group lifecycle and data-residency hosts are not live-verified; see the [compatibility contract](docs/guides/initial-contract.md).
 
 ## Scope
 
@@ -11,10 +11,12 @@ A focused Terraform and OpenTofu provider for GitHub Enterprise Cloud administra
 | Enterprise teams | `github_enterprise_team` | `github_enterprise_team`, `github_enterprise_teams` |
 | Direct membership | `github_enterprise_team_membership` | `github_enterprise_team_membership` |
 | Organization assignments | `github_enterprise_team_organizations` | `github_enterprise_team_organizations` |
+| Cost centers (next minor release) | `github_enterprise_cost_center` | `github_enterprise_cost_center`, `github_enterprise_cost_centers` |
+| Cost-center assignments (next minor release) | `github_enterprise_cost_center_resources` | Included in the cost-center data sources |
 
-All relations use a numeric `team_id`, which survives team renames. Team reads verify numeric identity before trusting a stored slug, including when someone reuses an old slug for a different team. If a team appears in the ID lookup but its slug disappears before the detail request, the operation fails and retains state so it can be retried.
+Team relationships use a numeric `team_id`, which survives team renames. Team reads verify numeric identity before trusting a stored slug, including when someone reuses an old slug for a different team. If a team appears in the ID lookup but its slug disappears before the detail request, the operation fails and retains state so it can be retried.
 
-Future work: enterprise cost centers, read-only SCIM lookups, and selected billing data sources. Existing enterprise functionality in `integrations/github` stays there. No GitHub Enterprise Server compatibility is claimed in this initial version.
+Future work: read-only SCIM lookups and selected billing data sources. Existing enterprise functionality in `integrations/github` stays there. Repository and organization administration stays in the official provider; assigning their billing to cost centers does not manage those objects. No GitHub Enterprise Server compatibility is claimed.
 
 ## Example
 
@@ -77,7 +79,9 @@ Documented token flows:
 - Classic PAT: `read:enterprise` for reads, `admin:enterprise` for writes, held by a user with the required enterprise role.
 - GitHub App installed on the enterprise: supply its access token with **Enterprise teams: read** or **write**, as appropriate. The provider accepts an already-issued token; minting and refreshing installation tokens are the caller's responsibility. This flow has not been live-validated.
 
-The initial verified authentication scope is a classic PAT against `api.github.com`. GitHub's endpoint-specific token tables and [Enterprise Teams GA announcement](https://github.blog/changelog/2026-06-04-enterprise-teams-is-now-generally-available/) document GitHub App support, but this provider's App-token flow remains outside the verified scope. Some introductory API text still says Apps are unsupported. Fine-grained PAT compatibility is not asserted.
+The initial verified authentication scope is a classic PAT against `api.github.com`. GitHub's endpoint-specific token tables and [Enterprise Teams GA announcement](https://github.blog/changelog/2026-06-04-enterprise-teams-is-now-generally-available/) document GitHub App support for teams, but this provider's App-token flow remains outside the verified scope. Fine-grained PAT compatibility is not asserted.
+
+Cost centers use a different permission: a classic PAT or OAuth access token with `manage_billing:enterprise`, held by an enterprise owner or billing manager for enterprise-wide visibility. Organization owners have limited visibility and cannot manage enterprise-team assignments; that is insufficient for safe cross-cost-center ownership checks. GitHub's [cost-center authentication notice](https://docs.github.com/en/enterprise-cloud@latest/rest/billing/cost-centers#authentication) says App authentication is **not generally available**. The generated endpoint permission tables are not proof that an enterprise can grant Enterprise billing permission. Do not rely on an App token unless your enterprise can grant that permission and its required operations have been verified. Fine-grained PATs cannot access these endpoints.
 
 Configuration example for Enterprise Cloud with data residency (not live-validated):
 
@@ -99,6 +103,16 @@ provider "github-enterprise" {
 - Do not manage the same remote object through this provider and another provider or IdP simultaneously.
 - The client uses 60-second HTTP timeouts and follows all pagination pages. It does not automatically retry writes, because replaying a create after an uncertain network failure can duplicate a team. Rate-limit diagnostics retain the request ID and `Retry-After` header; rerun after the limit resets.
 - GitHub can mask authorization failures as 404. Verify token access before applying a plan that proposes recreating missing resources. Explicit 403/429/5xx errors fail refresh without deleting state.
+
+### Cost centers
+
+Cost-center IDs are opaque strings and remain stable across renames. Destroy archives a cost center; GitHub retains the archived record. A refresh that observes `state = "deleted"` treats the managed resource as absent. Import uses `enterprise_slug/cost_center_id` for both the cost center and its assignment resource.
+
+`cost_center` manages the name, not its assignments. One `cost_center_resources` instance owns **all** users, organizations, repositories and enterprise teams assigned to a cost center. Omitted categories are empty; destroy removes the whole current assignment set, including out-of-band additions. Import existing assignments before managing them. Do not use multiple bindings for the same center or assign one resource to multiple centers.
+
+Before additions, the provider checks other active cost centers and refuses known overlapping assignments instead of silently moving billing. This requires enterprise-wide visibility and cannot make concurrent external changes atomic. An unexpected reassignment or partial failure is an error, not a successful apply; preserve state and inspect the result before retrying. Unknown resource types stop assignment reconciliation rather than being silently removed.
+
+Assignment values are the resource identifiers accepted and returned by GitHub's billing API; do not infer them from display labels or the team resource's numeric ID. The public API does not fully specify repository and enterprise-team identifier formats; this provider does not invent a normalization rule. Those formats and live assignment behavior remain unverified. Budgets, analytics and AI credit pool configuration are not managed.
 
 ## Import and migration
 

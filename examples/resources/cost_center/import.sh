@@ -1,0 +1,1 @@
+terraform import github_enterprise_cost_center.example my-enterprise/COST_CENTER_ID

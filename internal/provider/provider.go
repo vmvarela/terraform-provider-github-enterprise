@@ -39,8 +39,8 @@ func (p *enterpriseProvider) Metadata(_ context.Context, _ provider.MetadataRequ
 }
 
 func (p *enterpriseProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
-	resp.Schema = schema.Schema{MarkdownDescription: "Manages GitHub Enterprise Cloud teams alongside integrations/github. Set `provider = github-enterprise` on every resource and data source to select this provider explicitly.", Attributes: map[string]schema.Attribute{
-		"token":       schema.StringAttribute{Optional: true, Sensitive: true, MarkdownDescription: "Classic PAT or enterprise GitHub App access token. Defaults to GITHUB_ENTERPRISE_TOKEN, then GITHUB_TOKEN. Prefer environment variables to keep credentials out of configuration."},
+	resp.Schema = schema.Schema{MarkdownDescription: "Manages GitHub Enterprise Cloud teams and cost centers alongside integrations/github. Set `provider = github-enterprise` on every resource and data source to select this provider explicitly.", Attributes: map[string]schema.Attribute{
+		"token":       schema.StringAttribute{Optional: true, Sensitive: true, MarkdownDescription: "Classic PAT or enterprise GitHub App access token. Cost centers require manage_billing:enterprise for a classic PAT; App Enterprise billing permission is not generally available, so verify availability and required operations before using an App. Defaults to GITHUB_ENTERPRISE_TOKEN, then GITHUB_TOKEN. Prefer environment variables to keep credentials out of configuration."},
 		"base_url":    schema.StringAttribute{Optional: true, MarkdownDescription: "API base URL. Defaults to GITHUB_ENTERPRISE_BASE_URL, then https://api.github.com/. Supports dedicated api.SUBDOMAIN.ghe.com endpoints."},
 		"api_version": schema.StringAttribute{Optional: true, MarkdownDescription: "GitHub API version. Defaults to 2026-03-10."},
 		"enterprise_slug": schema.StringAttribute{Optional: true, MarkdownDescription: "Enterprise account slug. Defaults to GITHUB_ENTERPRISE_SLUG and is inherited by every resource and data source that omits enterprise_slug. A value set on the block wins over this one.",
@@ -96,10 +96,10 @@ func (p *enterpriseProvider) Configure(ctx context.Context, req provider.Configu
 }
 
 func (p *enterpriseProvider) Resources(_ context.Context) []func() resource.Resource {
-	return []func() resource.Resource{func() resource.Resource { return &teamResource{} }, func() resource.Resource { return &membershipResource{} }, func() resource.Resource { return &organizationsResource{} }}
+	return []func() resource.Resource{func() resource.Resource { return &teamResource{} }, func() resource.Resource { return &membershipResource{} }, func() resource.Resource { return &organizationsResource{} }, func() resource.Resource { return &costCenterResource{} }, func() resource.Resource { return &costCenterResourcesResource{} }}
 }
 func (p *enterpriseProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{func() datasource.DataSource { return &teamDataSource{} }, func() datasource.DataSource { return &teamsDataSource{} }, func() datasource.DataSource { return &membershipDataSource{} }, func() datasource.DataSource { return &organizationsDataSource{} }}
+	return []func() datasource.DataSource{func() datasource.DataSource { return &teamDataSource{} }, func() datasource.DataSource { return &teamsDataSource{} }, func() datasource.DataSource { return &membershipDataSource{} }, func() datasource.DataSource { return &organizationsDataSource{} }, func() datasource.DataSource { return &costCenterDataSource{} }, func() datasource.DataSource { return &costCentersDataSource{} }}
 }
 
 type providerData struct {
