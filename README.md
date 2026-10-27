@@ -1,36 +1,19 @@
 # Terraform Provider for GitHub Enterprise
 
-A focused Terraform and OpenTofu provider for GitHub Enterprise Cloud administration. Use it alongside [`integrations/github`](https://registry.terraform.io/providers/integrations/github/latest/docs): keep repositories and organizations there, and manage enterprise teams and cost centers here.
+Use Terraform or OpenTofu to manage GitHub Enterprise Cloud teams and cost centers without taking over your repositories and organizations. Keep those in [`integrations/github`](https://registry.terraform.io/providers/integrations/github/latest/docs); use this provider for the enterprise-level gaps.
 
-**Status:** published as version 0.1.0 in the Terraform and OpenTofu registries. That release manages enterprise teams only. The source adds cost centers for the next minor release; it does not make them available in 0.1.0. The team resources and data sources, a classic PAT against `api.github.com`, and coexistence with `integrations/github` are verified against a test enterprise. Cost centers, GitHub App tokens, IdP group lifecycle and data-residency hosts are not live-verified; see the [compatibility contract](docs/guides/initial-contract.md).
+Version **0.1.0** supports enterprise teams, direct membership and organization assignments. Version **0.2.0** adds cost centers and their billing assignments. Check [releases](https://github.com/vmvarela/terraform-provider-github-enterprise/releases) for published builds. GitHub Enterprise Server is not supported.
 
-## Scope
+## Create a team
 
-| Area | Resources | Data sources |
-| --- | --- | --- |
-| Enterprise teams | `github_enterprise_team` | `github_enterprise_team`, `github_enterprise_teams` |
-| Direct membership | `github_enterprise_team_membership` | `github_enterprise_team_membership` |
-| Organization assignments | `github_enterprise_team_organizations` | `github_enterprise_team_organizations` |
-| Cost centers (next minor release) | `github_enterprise_cost_center` | `github_enterprise_cost_center`, `github_enterprise_cost_centers` |
-| Cost-center assignments (next minor release) | `github_enterprise_cost_center_resources` | Included in the cost-center data sources |
-
-Team relationships use a numeric `team_id`, which survives team renames. Team reads verify numeric identity before trusting a stored slug, including when someone reuses an old slug for a different team. If a team appears in the ID lookup but its slug disappears before the detail request, the operation fails and retains state so it can be retried.
-
-Future work: read-only SCIM lookups and selected billing data sources. Existing enterprise functionality in `integrations/github` stays there. Repository and organization administration stays in the official provider; assigning their billing to cost centers does not manage those objects. No GitHub Enterprise Server compatibility is claimed.
-
-## Example
-
-The provider is published as `vmvarela/github-enterprise`. Pin a version and keep selecting it explicitly:
+Use a published 0.2.x release for this example. Save it as `main.tf`, replace `my-enterprise` with your enterprise slug, and set a token as described under [Authentication](#authentication). The team starts without organization assignments:
 
 ```hcl
 terraform {
   required_providers {
-    github = {
-      source = "integrations/github"
-    }
     github-enterprise = {
       source  = "vmvarela/github-enterprise"
-      version = "~> 0.1"
+      version = "~> 0.2.0"
     }
   }
 }
@@ -43,99 +26,79 @@ resource "github_enterprise_team" "platform" {
   provider = github-enterprise
 
   name                        = "Platform"
-  description                 = "Platform Engineering"
-  organization_selection_type = "selected"
-}
-
-resource "github_enterprise_team_membership" "member" {
-  provider = github-enterprise
-
-  team_id  = github_enterprise_team.platform.team_id
-  username = "octocat"
-}
-
-resource "github_enterprise_team_organizations" "platform" {
-  provider = github-enterprise
-
-  team_id            = github_enterprise_team.platform.team_id
-  organization_slugs = ["my-organization"]
+  organization_selection_type = "disabled"
 }
 ```
 
-`enterprise_slug` is declared once on the provider and every resource and data source inherits it. An explicit `enterprise_slug` on a block still wins, and `GITHUB_ENTERPRISE_SLUG` is the fallback when the provider argument is omitted. Changing the resolved slug replaces the resources bound to it, because a different enterprise is a different remote object.
+Download the provider and inspect the proposed changes before applying them:
 
-`github-enterprise` is the local provider name and distribution name. Resource and data source types use the readable `github_enterprise_` prefix. Set `provider = github-enterprise` on every resource and data source: otherwise Terraform infers `github` from the type name and selects the official provider. Configure the local name explicitly as above.
+```sh
+terraform init
+terraform plan
+```
+
+Use `tofu` instead of `terraform` for OpenTofu. The constraint stays within 0.2.x; commit the lock file to keep the selected version reproducible. See the [complete example](examples/complete) for both providers, membership and organization assignments in one configuration.
+
+**Keep `provider = github-enterprise` on every resource and data source.** The `github_enterprise_` prefix otherwise makes Terraform select `integrations/github`, which shares that prefix.
+
+Set `enterprise_slug` once on the provider, as above, or through `GITHUB_ENTERPRISE_SLUG`. Resources and data sources inherit it; set it on an individual block only to override that default. Changing the resolved enterprise replaces the resources bound to it; it does not move them.
 
 ## Authentication
 
-```sh
-export GITHUB_ENTERPRISE_TOKEN='...'
-```
+Set `GITHUB_ENTERPRISE_TOKEN` in your shell rather than putting a token in configuration. The provider falls back to `GITHUB_TOKEN`; an explicit sensitive `token` argument overrides both. The HTTP client does not log credentials.
 
-The provider reads `GITHUB_ENTERPRISE_TOKEN`, falling back to `GITHUB_TOKEN`. An explicit sensitive `token` provider argument takes precedence. Credentials are never logged by the HTTP client.
+- **Teams:** use a classic PAT with `read:enterprise` for reads or `admin:enterprise` for writes, held by a user with the required enterprise role.
+- **Cost centers:** use a classic PAT or OAuth token with `manage_billing:enterprise`. Use an enterprise owner or billing manager: organization-owner visibility is too narrow to check billing conflicts safely.
+- **GitHub Apps:** supply an already-issued token; this provider does not mint or refresh it. Teams require **Enterprise teams: read** or **write**. The App flow is not live-validated, and [App billing access is not generally available](https://docs.github.com/en/enterprise-cloud@latest/rest/billing/cost-centers#authentication). Permission tables alone do not prove your enterprise can grant that access.
 
-Documented token flows:
-
-- Classic PAT: `read:enterprise` for reads, `admin:enterprise` for writes, held by a user with the required enterprise role.
-- GitHub App installed on the enterprise: supply its access token with **Enterprise teams: read** or **write**, as appropriate. The provider accepts an already-issued token; minting and refreshing installation tokens are the caller's responsibility. This flow has not been live-validated.
-
-The initial verified authentication scope is a classic PAT against `api.github.com`. GitHub's endpoint-specific token tables and [Enterprise Teams GA announcement](https://github.blog/changelog/2026-06-04-enterprise-teams-is-now-generally-available/) document GitHub App support for teams, but this provider's App-token flow remains outside the verified scope. Fine-grained PAT compatibility is not asserted.
-
-Cost centers use a different permission: a classic PAT or OAuth access token with `manage_billing:enterprise`, held by an enterprise owner or billing manager for enterprise-wide visibility. Organization owners have limited visibility and cannot manage enterprise-team assignments; that is insufficient for safe cross-cost-center ownership checks. GitHub's [cost-center authentication notice](https://docs.github.com/en/enterprise-cloud@latest/rest/billing/cost-centers#authentication) says App authentication is **not generally available**. The generated endpoint permission tables are not proof that an enterprise can grant Enterprise billing permission. Do not rely on an App token unless your enterprise can grant that permission and its required operations have been verified. Fine-grained PATs cannot access these endpoints.
-
-Configuration example for Enterprise Cloud with data residency (not live-validated):
-
-```hcl
-provider "github-enterprise" {
-  base_url = "https://api.YOUR-SUBDOMAIN.ghe.com/"
-}
-```
-
-`GITHUB_ENTERPRISE_BASE_URL` is also supported. The default is `https://api.github.com/`. `api_version` defaults to `2026-03-10`.
+Fine-grained PATs cannot call the cost-center endpoints; their compatibility with team endpoints is not asserted. The default endpoint is `https://api.github.com/`, with API version `2026-03-10`. For data residency, set `base_url` or `GITHUB_ENTERPRISE_BASE_URL` to your `https://api.YOUR-SUBDOMAIN.ghe.com/` endpoint; that path is not live-validated.
 
 ## Ownership and lifecycle
 
-- Team refresh and import require GitHub to return `organization_selection_type` and `notification_setting`. If either is absent, refresh fails and retains state. The team data sources return `null` for omitted settings. Creation defaults apply to requests only; they are never substituted for missing API values. Organization assignment creation and updates also fail if GitHub omits the selection mode, because `selected` cannot be verified.
-- Membership resources manage one direct member and leave other members alone. Let the IdP control membership of an IdP-linked team; use the membership data source for reads.
-- `team_organizations` owns the **entire** assignment set. Omitted organizations are removed. An empty set removes all assignments. Use one instance per team, with `organization_selection_type = "selected"`.
-- Existing assignments must be imported before managing them. Destroying `team_organizations` removes every current assignment, including ones added outside Terraform.
-- `group_id` is exposed: unrelated updates omit it and explicit unlink sends JSON `null` (covered by fixture tests, not live validation). IdP group link/change/unlink and membership effects are outside the initial support contract. Changing a group link may replace direct membership on GitHub; do not rely on this lifecycle until it has been validated against a safe EMU fixture. Removing a description sends an empty string.
-- Do not manage the same remote object through this provider and another provider or IdP simultaneously.
-- The client uses 60-second HTTP timeouts and follows all pagination pages. It does not automatically retry writes, because replaying a create after an uncertain network failure can duplicate a team. Rate-limit diagnostics retain the request ID and `Retry-After` header; rerun after the limit resets.
-- GitHub can mask authorization failures as 404. Verify token access before applying a plan that proposes recreating missing resources. Explicit 403/429/5xx errors fail refresh without deleting state.
+Choose a resource by what it owns, not just by its name:
 
-### Cost centers
+| Resource | What Terraform owns |
+| --- | --- |
+| [`team`](docs/resources/team.md) | One enterprise team. Relationships use its stable numeric ID, not its slug. |
+| [`team_membership`](docs/resources/team_membership.md) | One direct member; other members stay untouched. Let the IdP own membership of IdP-linked teams. |
+| [`team_organizations`](docs/resources/team_organizations.md) | **All** organization assignments for a team in `selected` mode. Omitted organizations are removed. |
+| [`cost_center`](docs/resources/cost_center.md) | The name of one cost center, not its assignments. Destroy archives it and releases its assignments; there is no hard delete. |
+| [`cost_center_resources`](docs/resources/cost_center_resources.md) | **All** users, organizations, repositories and enterprise teams assigned to one cost center. Omitted categories are empty. |
 
-Cost-center IDs are opaque strings and remain stable across renames. Destroy archives a cost center; GitHub retains the archived record. A refresh that observes `state = "deleted"` treats the managed resource as absent. Import uses `enterprise_slug/cost_center_id` for both the cost center and its assignment resource.
+**Import existing assignments before managing them. Destroying either assignment resource removes its entire current set, including additions made outside Terraform.** Use one binding per remote object, never overlapping bindings across providers or an IdP. Use the [data sources](docs/data-sources) to read existing objects without owning them.
 
-`cost_center` manages the name, not its assignments. One `cost_center_resources` instance owns **all** users, organizations, repositories and enterprise teams assigned to a cost center. Omitted categories are empty; destroy removes the whole current assignment set, including out-of-band additions. Import existing assignments before managing them. Do not use multiple bindings for the same center or assign one resource to multiple centers.
+Changing an IdP group link can replace direct membership on GitHub. That lifecycle is not live-validated; do not rely on it until you have tested it with a safe fixture.
 
-Before additions, the provider checks other active cost centers and refuses known overlapping assignments instead of silently moving billing. This requires enterprise-wide visibility and cannot make concurrent external changes atomic. An unexpected reassignment or partial failure is an error, not a successful apply; preserve state and inspect the result before retrying. Unknown resource types stop assignment reconciliation rather than being silently removed.
+Cost-center additions check other active centers and refuse known conflicts rather than silently moving billing. This requires enterprise-wide visibility and cannot prevent concurrent external changes. Partial failures retain recoverable state; inspect an unexpected reassignment before retrying. Unknown resource types stop assignment reconciliation rather than being discarded.
 
-Assignment values are the resource identifiers accepted and returned by GitHub's billing API; do not infer them from display labels or the team resource's numeric ID. The public API does not fully specify repository and enterprise-team identifier formats; this provider does not invent a normalization rule. Those formats and live assignment behavior remain unverified. Budgets, analytics and AI credit pool configuration are not managed.
+Supply the exact identifiers accepted by GitHub's billing API. Repository and enterprise-team identifier formats and live assignment behavior remain unverified. Budgets, analytics and AI credit pool configuration are outside the scope.
+
+GitHub can hide permission failures behind a 404. Check token access before accepting a plan that recreates a missing object. Explicit permission, rate-limit and server errors stop refresh without dropping state. Writes are not automatically retried: replaying an uncertain create can duplicate an object.
+
+The [compatibility contract](docs/guides/initial-contract.md) covers incomplete API responses, group links, drift and deprecation. Its live-validated scope is enterprise teams with a classic PAT against `api.github.com`, alongside the official provider. It does not cover cost centers, App tokens, IdP group lifecycle or data-residency hosts. CI exercises Terraform 1.14.3 and OpenTofu 1.11.0 on Linux, not every CLI version or target platform.
 
 ## Import and migration
 
+Create matching configuration, then import the existing identity rather than recreating it. For a team and, from 0.2.0, a cost center's assignments:
+
 ```sh
 terraform import github_enterprise_team.platform my-enterprise/123456
-terraform import github_enterprise_team_membership.member my-enterprise/123456/octocat
-terraform import github_enterprise_team_organizations.platform my-enterprise/123456
+terraform import github_enterprise_cost_center_resources.platform my-enterprise/COST_CENTER_ID
 ```
 
-When moving from the author's `vmvarela/github` fork, create matching configuration here and import the existing objects into these resources. Compare a plan, then remove the old resource bindings **without destroying the remote objects**. Use `removed` blocks with `destroy = false` where supported, or carefully use `terraform state rm` with a state backup. Do not apply while both providers manage the same object. Renamed resource types and schemas mean `state replace-provider` alone is insufficient.
+Team IDs are numeric; cost-center IDs are opaque strings that survive renames. See each resource's reference for its import format. When migrating from `vmvarela/github`, import here, compare the plan, then remove the old bindings **without destroying the objects** (`removed` with `destroy = false`, or `terraform state rm` with a backup). `state replace-provider` alone cannot handle renamed types and different schemas. Do not apply while both bindings exist.
 
 ## Development
 
-Requires Go 1.26.6 or newer. CI tests Terraform 1.14.3 and OpenTofu 1.11.0. Other CLI versions have not been validated.
+With Go 1.26.6 or newer and Terraform on `PATH` (or `TF_ACC_TERRAFORM_PATH` set), build and check the provider locally:
 
 ```sh
+make check
 make build
-make test
-make integration  # Terraform must be on PATH, or set TF_ACC_TERRAFORM_PATH
-make docs         # Regenerate Registry documentation from schemas and examples
+make docs
 ```
 
-For a local binary, add the absolute path to `bin` in a dedicated CLI configuration:
+To use that binary, point `TF_CLI_CONFIG_FILE` at a dedicated file with your absolute `bin` path:
 
 ```hcl
 provider_installation {
@@ -146,20 +109,8 @@ provider_installation {
 }
 ```
 
-Set `TF_CLI_CONFIG_FILE` to that file. With the development override, run `terraform plan` or `tofu plan` directly; `init` resolves the published provider instead of your local build. Other providers in the configuration must already be installed.
+With this override, `init` still resolves the published provider; run `plan` directly once any other providers are installed. That command calls GitHub, so use an appropriate test configuration. Local HTTP tests need no credentials; real acceptance tests require explicit gates and a dedicated enterprise. See [CONTRIBUTING.md](CONTRIBUTING.md) before running them.
 
-Live acceptance tests are opt-in and fail closed; pull-request CI never runs them. Their gating, fixtures and safety model are documented in [CONTRIBUTING.md](CONTRIBUTING.md#live-acceptance-tests).
+Packages are signed, and published versions are immutable. Use the [release verification guide](docs/guides/releases.md) to check a download; maintainers follow [RELEASING.md](RELEASING.md).
 
-## Releases
-
-Versions follow semantic versioning and ship as signed packages to the Terraform and OpenTofu registries; a published version is never replaced. Every release runs the full CI workflow against the tagged commit before publication.
-
-The [release verification guide](docs/guides/releases.md) covers supported platforms and signature checks. The [compatibility contract](docs/guides/initial-contract.md) defines ownership, imports and the deprecation policy applied when the official provider gains an equivalent feature. The [complete coexistence example](examples/complete) runs both providers in one configuration.
-
-Maintainers: [RELEASING.md](RELEASING.md).
-
-## Origin
-
-The initial scope and lifecycle safeguards derive from [vmvarela's Enterprise Teams contribution](https://github.com/integrations/terraform-provider-github/pull/3008). This repository implements an independent provider using Terraform Plugin Framework rather than copying the full SDKv2 provider. Upstream contributions can continue independently.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md), [NOTICE](NOTICE) and [LICENSE](LICENSE).
+This is an independent Terraform Plugin Framework implementation, originating in [the Enterprise Teams contribution](https://github.com/integrations/terraform-provider-github/pull/3008). See [NOTICE](NOTICE) and [LICENSE](LICENSE) for attribution and terms.
