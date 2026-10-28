@@ -39,6 +39,27 @@ are manual version tags; merging a pull request does not publish a release. See
 [the compatibility contract](docs/guides/initial-contract.md) for the commitments
 each release must keep.
 
+## Static security analysis
+
+The separate `Security` workflow runs gosec v2.30.0 on pushes to `master` and
+pull requests, and uploads SARIF to GitHub code scanning. It retains the existing
+CI jobs and required check names. gosec is Apache-2.0 licensed and runs
+without an account, paid service or AI autofix; code scanning is free for this
+public repository.
+
+The scan covers production Go packages, not test files. It complements `go vet`
+with security rules and data-flow checks; it does not validate Terraform
+ownership semantics, live permissions or known dependency vulnerabilities.
+
+Review findings in **Security → Code scanning**, filtered by gosec. Fix real
+issues and explain any false-positive dismissal. If an inline suppression is
+necessary, scope `#nosec` to the specific rule and include a justification.
+Do not disable entire rule groups merely to make the check green.
+
+Findings fail the new job, but the SARIF upload still runs so they remain
+reviewable. Processing and upload errors also fail the job; a missing analysis
+is not a clean result. Adding this workflow does not make its check required.
+
 ## Live acceptance tests
 
 Live tests are opt-in and fail closed; pull-request CI never runs them. They write

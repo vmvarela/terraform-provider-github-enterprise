@@ -41,7 +41,7 @@ func generate() error {
 			base := filepath.Join("examples", kind, short)
 			importText := ""
 			if kind == "resources" {
-				b, err := os.ReadFile(filepath.Join(base, "import.sh"))
+				b, err := os.ReadFile(filepath.Join(base, "import.sh")) // #nosec G304 -- Paths come from compiled-in provider schema names, not user input.
 				if err != nil {
 					return err
 				}
@@ -59,7 +59,7 @@ func generate() error {
 	return nil
 }
 func writeDoc(title, path, example string, schema *tfprotov6.Schema, importText string) error {
-	b, err := os.ReadFile(example)
+	b, err := os.ReadFile(example) // #nosec G304 -- Callers use fixed paths or compiled-in provider schema names, not user input.
 	if err != nil {
 		return err
 	}
@@ -94,8 +94,8 @@ func writeDoc(title, path, example string, schema *tfprotov6.Schema, importText 
 		fmt.Fprintf(&out, "\n## Import\n\n```sh\n%s```\n", importText)
 	}
 	fmt.Fprintln(&out, "\nSee the [provider guide](https://github.com/vmvarela/terraform-provider-github-enterprise#authentication) for authentication, ownership and compatibility requirements.")
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil { // #nosec G301 -- Generated public Registry docs must be readable; these directories contain no secrets.
 		return err
 	}
-	return os.WriteFile(path, []byte(out.String()), 0644)
+	return os.WriteFile(path, []byte(out.String()), 0644) // #nosec G306 -- Generated public Registry docs must be readable and contain no secrets.
 }
