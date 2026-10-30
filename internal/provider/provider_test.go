@@ -38,7 +38,7 @@ func TestProviderSchema(t *testing.T) {
 			t.Fatalf("%s: %s", d.Summary, d.Detail)
 		}
 	}
-	if len(r.ResourceSchemas) != 5 || len(r.DataSourceSchemas) != 6 {
+	if len(r.ResourceSchemas) != 5 || len(r.DataSourceSchemas) != 10 {
 		t.Fatalf("resources=%d data sources=%d", len(r.ResourceSchemas), len(r.DataSourceSchemas))
 	}
 }

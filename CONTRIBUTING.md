@@ -62,8 +62,8 @@ is not a clean result. Adding this workflow does not make its check required.
 
 ## Live acceptance tests
 
-Live tests are opt-in and fail closed; pull-request CI never runs them. They write
-to a real enterprise, so gate every invocation per command, with the confirmation
+Live tests are opt-in and fail closed; pull-request CI never runs them. All suites
+except `TestAccSCIM` write to a real enterprise. Gate every invocation per command, with the confirmation
 in the same shell and never recorded in `.envrc` or shell profiles:
 
 ```sh
@@ -81,6 +81,14 @@ TF_ACC=1 GITHUB_ENTERPRISE_SLUG=my-test-enterprise \
 
 Suites and required fixtures:
 
+- `TestAccSCIM` is read-only: additionally requires existing
+  `GITHUB_ENTERPRISE_TEST_SCIM_GROUP_ID` and
+  `GITHUB_ENTERPRISE_TEST_SCIM_USER_ID`, each repeated exactly in its matching
+  `_CONFIRM` variable. Use approved fixtures in a dedicated Enterprise Managed
+  Users enterprise. It reads each object and lists using an exact ID filter;
+  it does not provision identities, change membership, link teams or run teardown.
+  SCIM credentials differ from team credentials: see [Authentication](README.md#authentication).
+  This suite has not been run live; fixture tests do not establish live permissions.
 - `TestAccTeam` (core): creates a uniquely named `tf-acc-*` team, reads it through
   both team data sources, reconciles an out-of-band rename back to the configured
   name, renames it, clears its description, imports it and verifies the numeric ID

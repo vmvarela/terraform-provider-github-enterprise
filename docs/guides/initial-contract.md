@@ -1,14 +1,14 @@
 ---
 page_title: "Compatibility and lifecycle"
 description: |-
-  Ownership, drift behaviour, import requirements and compatibility commitments for the v0.2 release line.
+  Ownership, drift behaviour, import requirements and compatibility commitments, including unreleased v0.3 SCIM lookups.
 ---
 
 # Compatibility and lifecycle
 
 This page defines what each resource owns, how the provider behaves when GitHub
 returns incomplete data, and which compatibility commitments apply to the v0.2
-release line. Release mechanics are covered by the
+release line and unreleased v0.3 additions. Release mechanics are covered by the
 [release verification guide](https://github.com/vmvarela/terraform-provider-github-enterprise/blob/master/docs/guides/releases.md).
 
 The provider complements `integrations/github` with enterprise teams and cost centers
@@ -92,17 +92,67 @@ permission tables do not prove that the enterprise can grant Enterprise billing
 permission. Verify availability and the required operations before using an App.
 See the [API authentication notice](https://docs.github.com/en/enterprise-cloud@latest/rest/billing/cost-centers#authentication).
 
+## Read-only SCIM lookups (unreleased v0.3)
+
+The `scim_group`, `scim_groups`, `scim_user` and `scim_users` data sources read
+existing identities in an Enterprise Managed Users enterprise. They do not
+provision users or groups or manage membership; the IdP remains the only SCIM
+writer. They are not available in published 0.2.x builds.
+
+SCIM IDs are opaque, case-sensitive strings, distinct from IdP `external_id`
+values and numeric GitHub IDs. Use a group's `scim_group_id` for a team's
+`group_id`, not its composite Terraform `id`. Missing optional properties remain
+null; an explicit inactive user remains `active = false`. User lists include
+soft-deprovisioned users but not permanently deleted identities.
+
+With a local development build, look up an existing IdP group by its GitHub-issued
+SCIM ID and use that raw identity when linking a team:
+
+```hcl
+data "github_enterprise_scim_group" "platform" {
+  provider      = github-enterprise
+  scim_group_id = var.scim_group_id
+}
+
+resource "github_enterprise_team" "platform" {
+  provider = github-enterprise
+  name     = "Platform"
+  group_id = data.github_enterprise_scim_group.platform.scim_group_id
+}
+```
+
+Set `enterprise_slug` on the provider. Linking can replace direct membership;
+do not also manage it with `team_membership`. Do not substitute an empty group ID
+when a lookup fails: an empty `group_id` unlinks the team.
+
+List filters are passed to GitHub unchanged. Groups support `externalId`, `id`
+and `displayName`; users additionally support `userName`, which is not necessarily
+the normalized GitHub login. GitHub supports one filter, not multiple filters.
+SCIM pagination follows `startIndex` and `count`, not REST page links. Empty
+matches return an empty list; a missing single object or an incomplete/malformed
+response produces an error. Offset pagination is not a snapshot of concurrent
+IdP changes. Protect Terraform state containing identity information.
+
+Use a setup-user classic PAT with `scim:enterprise`, or another enterprise owner's
+classic PAT with `admin:enterprise` for reads. GitHub also documents App user and
+installation tokens with **Enterprise SCIM: read**; that flow is not live-validated
+here. Fine-grained PAT support is not asserted. See [SCIM authentication](https://docs.github.com/en/enterprise-cloud@latest/rest/enterprise-admin/scim#authentication).
+SCIM uses `https://api.github.com/` or the configured
+`https://api.SUBDOMAIN.ghe.com/` root. Live SCIM behavior, permissions and
+data-residency hosts remain unverified by this provider.
+
 ## Compatibility
 
 The provider targets GitHub Enterprise Cloud. No GitHub Enterprise Server support
-is claimed. Cost centers were added in v0.2.0; SCIM and billing usage data sources
-remain outside its scope. The default API version is `2026-03-10`.
+is claimed. Cost centers were added in v0.2.0; read-only SCIM lookups target the
+unreleased v0.3. Billing usage data sources remain outside its scope. The default
+API version is `2026-03-10`.
 
 Packages are built for Linux, macOS and Windows on amd64 and arm64. Releases are
 validated with Terraform 1.14.3 and OpenTofu 1.11.0 on Linux; cross-compilation
 does not establish runtime acceptance on the other platforms.
 
-Authentication verified against `api.github.com` uses a classic PAT, with
+Team authentication verified against `api.github.com` uses a classic PAT, with
 `read:enterprise` for reads and `admin:enterprise` for writes. An already-issued
 GitHub App token with **Enterprise teams: read** or **write** is accepted, but
 minting and refreshing installation tokens are the caller's responsibility and the

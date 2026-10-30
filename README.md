@@ -4,6 +4,8 @@ Use Terraform or OpenTofu to manage GitHub Enterprise Cloud teams and cost cente
 
 Version **0.1.0** supports enterprise teams, direct membership and organization assignments. Version **0.2.0** adds cost centers and their billing assignments. Check [releases](https://github.com/vmvarela/terraform-provider-github-enterprise/releases) for published builds. GitHub Enterprise Server is not supported.
 
+The unreleased **v0.3** adds read-only SCIM user and group lookups for Enterprise Managed Users. These data sources are not available in 0.2.x; provisioning and membership stay with your identity provider (IdP).
+
 ## Create a team
 
 Use a published 0.2.x release for this example. Save it as `main.tf`, replace `my-enterprise` with your enterprise slug, and set a token as described under [Authentication](#authentication). The team starts without organization assignments:
@@ -49,6 +51,7 @@ Set `GITHUB_ENTERPRISE_TOKEN` in your shell rather than putting a token in confi
 
 - **Teams:** use a classic PAT with `read:enterprise` for reads or `admin:enterprise` for writes, held by a user with the required enterprise role.
 - **Cost centers:** use a classic PAT or OAuth token with `manage_billing:enterprise`. Use an enterprise owner or billing manager: organization-owner visibility is too narrow to check billing conflicts safely.
+- **SCIM (unreleased):** requires Enterprise Managed Users. Use a setup-user classic PAT with `scim:enterprise`, or another enterprise owner's classic PAT with `admin:enterprise` for GET requests. GitHub also documents App user and installation tokens with **Enterprise SCIM: read**, not live-validated here. Fine-grained PAT support is not asserted. See [GitHub's SCIM authentication requirements](https://docs.github.com/en/enterprise-cloud@latest/rest/enterprise-admin/scim#authentication).
 - **GitHub Apps:** supply an already-issued token; this provider does not mint or refresh it. Teams require **Enterprise teams: read** or **write**. The App flow is not live-validated, and [App billing access is not generally available](https://docs.github.com/en/enterprise-cloud@latest/rest/billing/cost-centers#authentication). Permission tables alone do not prove your enterprise can grant that access.
 
 Fine-grained PATs cannot call the cost-center endpoints; their compatibility with team endpoints is not asserted. The default endpoint is `https://api.github.com/`, with API version `2026-03-10`. For data residency, set `base_url` or `GITHUB_ENTERPRISE_BASE_URL` to your `https://api.YOUR-SUBDOMAIN.ghe.com/` endpoint; that path is not live-validated.
@@ -69,13 +72,15 @@ Choose a resource by what it owns, not just by its name:
 
 Changing an IdP group link can replace direct membership on GitHub. That lifecycle is not live-validated; do not rely on it until you have tested it with a safe fixture.
 
+SCIM lookups expose opaque, case-sensitive `scim_group_id` and `scim_user_id` strings. Use `scim_group_id`, **not** the data source's composite Terraform `id`, for a team's `group_id`; neither is an organization's numeric external-group ID. List lookups follow SCIM pagination and accept one API filter. They are not point-in-time snapshots: concurrent IdP changes can invalidate a listing. Names and identities read into Terraform state may contain personal information; protect that state accordingly.
+
 Cost-center additions check other active centers and refuse known conflicts rather than silently moving billing. This requires enterprise-wide visibility and cannot prevent concurrent external changes. Partial failures retain recoverable state; inspect an unexpected reassignment before retrying. Unknown resource types stop assignment reconciliation rather than being discarded.
 
 Supply the exact identifiers accepted by GitHub's billing API. Repository and enterprise-team identifier formats and live assignment behavior remain unverified. Budgets, analytics and AI credit pool configuration are outside the scope.
 
 GitHub can hide permission failures behind a 404. Check token access before accepting a plan that recreates a missing object. Explicit permission, rate-limit and server errors stop refresh without dropping state. Writes are not automatically retried: replaying an uncertain create can duplicate an object.
 
-The [compatibility contract](docs/guides/initial-contract.md) covers incomplete API responses, group links, drift and deprecation. Its live-validated scope is enterprise teams with a classic PAT against `api.github.com`, alongside the official provider. It does not cover cost centers, App tokens, IdP group lifecycle or data-residency hosts. CI exercises Terraform 1.14.3 and OpenTofu 1.11.0 on Linux, not every CLI version or target platform.
+The [compatibility contract](docs/guides/initial-contract.md) covers incomplete API responses, group links, drift and deprecation. Its live-validated scope is enterprise teams with a classic PAT against `api.github.com`, alongside the official provider. It does not cover SCIM, cost centers, App tokens, IdP group lifecycle or data-residency hosts. CI exercises Terraform 1.14.3 and OpenTofu 1.11.0 on Linux, not every CLI version or target platform.
 
 ## Import and migration
 
