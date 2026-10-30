@@ -126,6 +126,8 @@ func TestSCIMGroupAndUserAttributes(t *testing.T) {
 			fmt.Fprint(w, `{"id":"g2"}`)
 		case "/api/scim/v2/enterprises/e/Users/u2":
 			fmt.Fprint(w, `{"id":"u2"}`)
+		case "/api/scim/v2/enterprises/e/Users/u3":
+			fmt.Fprint(w, `{"id":"u3","active":true}`)
 		default:
 			t.Errorf("unexpected request %s", r.URL)
 		}
@@ -144,6 +146,10 @@ func TestSCIMGroupAndUserAttributes(t *testing.T) {
 	}
 	if u, err := c.SCIMUser(ctx, "e", "u2"); err != nil || u.ExternalID != "" || u.DisplayName != "" || u.UserName != "" || u.Active {
 		t.Fatalf("absent user attributes not nil: %+v %v", u, err)
+	}
+	// A plain bool decodes to false when ignored, so only true proves decoding.
+	if u, err := c.SCIMUser(ctx, "e", "u3"); err != nil || !u.Active {
+		t.Fatalf("explicit active=true not decoded: %+v %v", u, err)
 	}
 }
 

@@ -80,7 +80,7 @@ func (d *teamsDataSource) Metadata(_ context.Context, _ datasource.MetadataReque
 	resp.TypeName = resourceTypePrefix + "_teams"
 }
 func (d *teamsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
-	resp.Schema = schema.Schema{MarkdownDescription: "Lists all enterprise teams, following every pagination page. Missing organization selection and notification settings are returned as null.", Attributes: map[string]schema.Attribute{
+	resp.Schema = schema.Schema{MarkdownDescription: "Lists all enterprise teams, following every pagination page. A missing organization selection is returned as null.", Attributes: map[string]schema.Attribute{
 		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "Enterprise slug."},
 		"enterprise_slug": enterpriseDataAttribute(),
 		"teams":           schema.ListNestedAttribute{Computed: true, MarkdownDescription: "Enterprise teams in API order.", NestedObject: schema.NestedAttributeObject{Attributes: teamDataAttributes()}},

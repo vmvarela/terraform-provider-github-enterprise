@@ -60,12 +60,10 @@ type apiVersionTransport struct {
 func (t apiVersionTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	clone := r.Clone(r.Context())
 	clone.Header.Set("X-GitHub-Api-Version", t.version)
-	// Typed SDK methods take no Accept option, and SCIM expects its own media type.
-	accept := "application/vnd.github+json"
-	if strings.Contains(clone.URL.Path, "/scim/") {
-		accept = "application/scim+json"
+	// Normalize only the SDK default; SCIM methods already set their own media type.
+	if a := clone.Header.Get("Accept"); a == "" || a == "application/vnd.github.v3+json" {
+		clone.Header.Set("Accept", "application/vnd.github+json")
 	}
-	clone.Header.Set("Accept", accept)
 	return t.base.RoundTrip(clone)
 }
 
@@ -127,15 +125,10 @@ func teamPath(enterprise string, selector string) string {
 }
 
 func (c *Client) request(ctx context.Context, method, path string, body, out any) (*github.Response, error) {
-	return c.requestAccept(ctx, method, path, "application/vnd.github+json", body, out)
-}
-
-func (c *Client) requestAccept(ctx context.Context, method, path, accept string, body, out any) (*github.Response, error) {
 	req, err := c.api.NewRequest(ctx, method, path, body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Accept", accept)
 	resp, err := c.api.Do(req, out)
 	if err != nil {
 		return resp, newAPIError(req.Method, req.URL.EscapedPath(), err)
@@ -168,6 +161,12 @@ func newAPIError(method, path string, err error) error {
 	if errors.As(err, &accepted) {
 		return &APIError{Status: http.StatusAccepted, Method: method, Path: path}
 	}
+	// A decode error can quote a server-supplied value (e.g. a timestamp), so it
+	// must not reach Terraform diagnostics verbatim.
+	var parseErr *time.ParseError
+	if errors.As(err, &parseErr) {
+		return fmt.Errorf("GitHub API %s %s: response contained an unparsable value", method, path)
+	}
 	return err
 }
 
@@ -175,6 +174,11 @@ func responseOf(err error) *http.Response {
 	var er *github.ErrorResponse
 	if errors.As(err, &er) {
 		return er.Response
+	}
+	// TwoFactorAuthError is a distinct type that also embeds the response.
+	var otp *github.TwoFactorAuthError
+	if errors.As(err, &otp) {
+		return otp.Response
 	}
 	var rate *github.RateLimitError
 	if errors.As(err, &rate) {
@@ -191,21 +195,22 @@ func responseOf(err error) *http.Response {
 	return nil
 }
 
-// paginate calls fetch with successive page numbers until it reports no more
-// pages, so typed SDK methods keep the provider's full-pagination contract.
-func paginate[T any](fetch func(page int) ([]T, bool, error)) ([]T, error) {
+// paginate calls fetch with the page the server asked for next, so typed SDK
+// methods keep the provider's full-pagination contract.
+func paginate[T any](fetch func(page int) ([]T, int, error)) ([]T, error) {
 	all := make([]T, 0)
-	for page := 1; page <= maxPages; page++ {
-		items, more, err := fetch(page)
+	for page, n := 1, 0; page != 0; n++ {
+		if n >= maxPages {
+			return nil, fmt.Errorf("too many pages")
+		}
+		items, next, err := fetch(page)
 		if err != nil {
 			return nil, err
 		}
 		all = append(all, items...)
-		if !more {
-			return all, nil
-		}
+		page = next
 	}
-	return nil, fmt.Errorf("too many pages")
+	return all, nil
 }
 
 // Only the page number among the server's Link values is used, and only to
@@ -222,9 +227,22 @@ func nextPage(resp *github.Response, current int) (int, error) {
 }
 
 func (c *Client) Teams(ctx context.Context, enterprise string) ([]*github.EnterpriseTeam, error) {
-	return paginate(func(page int) ([]*github.EnterpriseTeam, bool, error) {
+	return paginate(func(page int) ([]*github.EnterpriseTeam, int, error) {
 		teams, resp, err := c.api.Enterprise.ListTeams(ctx, seg(enterprise), &github.ListOptions{Page: page, PerPage: 100})
-		return teams, resp != nil && resp.NextPage != 0, callError(http.MethodGet, teamPath(enterprise, ""), err)
+		if err != nil {
+			return nil, 0, callError(http.MethodGet, teamPath(enterprise, ""), err)
+		}
+		// The SDK accepts an empty body as success; a list must be a JSON array.
+		if teams == nil {
+			return nil, 0, fmt.Errorf("GitHub returned an empty team list")
+		}
+		for _, t := range teams {
+			if t == nil {
+				return nil, 0, fmt.Errorf("GitHub returned an empty team in the team list")
+			}
+		}
+		next, err := nextPage(resp, page)
+		return teams, next, err
 	})
 }
 
@@ -336,9 +354,22 @@ func (c *Client) RemoveMember(ctx context.Context, enterprise string, teamID int
 }
 
 func (c *Client) Organizations(ctx context.Context, enterprise string, teamID int64) ([]*github.Organization, error) {
-	return paginate(func(page int) ([]*github.Organization, bool, error) {
+	path := teamPath(enterprise, "") + "/" + strconv.FormatInt(teamID, 10) + "/organizations"
+	return paginate(func(page int) ([]*github.Organization, int, error) {
 		orgs, resp, err := c.api.Enterprise.ListAssignments(ctx, seg(enterprise), strconv.FormatInt(teamID, 10), &github.ListOptions{Page: page, PerPage: 100})
-		return orgs, resp != nil && resp.NextPage != 0, callError(http.MethodGet, teamPath(enterprise, "")+"/"+strconv.FormatInt(teamID, 10)+"/organizations", err)
+		if err != nil {
+			return nil, 0, callError(http.MethodGet, path, err)
+		}
+		if orgs == nil {
+			return nil, 0, fmt.Errorf("GitHub returned an empty organization list")
+		}
+		for _, o := range orgs {
+			if o == nil {
+				return nil, 0, fmt.Errorf("GitHub returned an empty organization in the assignment list")
+			}
+		}
+		next, err := nextPage(resp, page)
+		return orgs, next, err
 	})
 }
 

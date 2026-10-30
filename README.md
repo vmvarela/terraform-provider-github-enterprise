@@ -76,11 +76,11 @@ SCIM lookups expose opaque, case-sensitive `scim_group_id` and `scim_user_id` st
 
 Cost-center additions check other active centers and refuse known conflicts rather than silently moving billing. This requires enterprise-wide visibility and cannot prevent concurrent external changes. Partial failures retain recoverable state; inspect an unexpected reassignment before retrying. Unknown resource types stop assignment reconciliation rather than being discarded.
 
-Supply the exact identifiers accepted by GitHub's billing API. Repository and enterprise-team identifier formats and live assignment behavior remain unverified. Budgets, analytics and AI credit pool configuration are outside the scope.
+Supply the exact identifiers accepted by GitHub's billing API. Repository and enterprise-team identifier formats remain unverified; organization assignment, import and archival are covered by the live suite. Budgets, analytics and AI credit pool configuration are outside the scope.
 
 GitHub can hide permission failures behind a 404. Check token access before accepting a plan that recreates a missing object. Explicit permission, rate-limit and server errors stop refresh without dropping state. Writes are not automatically retried: replaying an uncertain create can duplicate an object.
 
-The [compatibility contract](docs/guides/initial-contract.md) covers incomplete API responses, group links, drift and deprecation. Its live-validated scope is enterprise teams and read-only SCIM lookups with a classic PAT against `api.github.com`, alongside the official provider. It does not cover cost centers, App tokens, IdP group lifecycle or data-residency hosts. CI exercises Terraform 1.14.3 and OpenTofu 1.11.0 on Linux, not every CLI version or target platform.
+The [compatibility contract](docs/guides/initial-contract.md) covers incomplete API responses, group links, drift and deprecation. Its live-validated scope is enterprise teams, read-only SCIM lookups and cost centers with a classic PAT against `api.github.com`, alongside the official provider. It does not cover App tokens, IdP group lifecycle or data-residency hosts. CI exercises Terraform 1.14.3 and OpenTofu 1.11.0 on Linux, not every CLI version or target platform.
 
 ## Import and migration
 

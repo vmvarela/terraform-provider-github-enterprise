@@ -36,10 +36,10 @@ func scimUserAttributes() map[string]schema.Attribute {
 	}
 }
 func scimGroupObject(g *github.SCIMEnterpriseGroupAttributes) (types.Object, diag.Diagnostics) {
-	return types.ObjectValue(scimGroupTypes, map[string]attr.Value{"scim_group_id": types.StringValue(strOrEmpty(g.ID)), "external_id": strOrNull(g.ExternalID), "display_name": strOrNull(g.DisplayName)})
+	return types.ObjectValue(scimGroupTypes, map[string]attr.Value{"scim_group_id": types.StringValue(strOrEmpty(g.ID)), "external_id": nullIfEmpty(g.ExternalID), "display_name": nullIfEmpty(g.DisplayName)})
 }
 func scimUserObject(u *github.SCIMEnterpriseUserAttributes) (types.Object, diag.Diagnostics) {
-	return types.ObjectValue(scimUserTypes, map[string]attr.Value{"scim_user_id": types.StringValue(strOrEmpty(u.ID)), "external_id": strOrNull(u.ExternalID), "display_name": strOrNull(u.DisplayName), "user_name": strOrNull(u.UserName), "active": types.BoolValue(u.Active)})
+	return types.ObjectValue(scimUserTypes, map[string]attr.Value{"scim_user_id": types.StringValue(strOrEmpty(u.ID)), "external_id": nullIfEmpty(u.ExternalID), "display_name": nullIfEmpty(u.DisplayName), "user_name": nullIfEmpty(u.UserName), "active": types.BoolValue(u.Active)})
 }
 
 // scimListID is deterministic and includes the escaped filter so distinct
@@ -88,7 +88,7 @@ func (d *scimGroupDataSource) Read(ctx context.Context, req datasource.ReadReque
 		return
 	}
 	data.ID = types.StringValue(enterprise.ValueString() + "/" + strOrEmpty(g.ID))
-	data.ExternalID, data.DisplayName = strOrNull(g.ExternalID), strOrNull(g.DisplayName)
+	data.ExternalID, data.DisplayName = nullIfEmpty(g.ExternalID), nullIfEmpty(g.DisplayName)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -184,7 +184,7 @@ func (d *scimUserDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 	data.ID = types.StringValue(enterprise.ValueString() + "/" + strOrEmpty(u.ID))
-	data.ExternalID, data.DisplayName, data.UserName, data.Active = strOrNull(u.ExternalID), strOrNull(u.DisplayName), strOrNull(u.UserName), types.BoolValue(u.Active)
+	data.ExternalID, data.DisplayName, data.UserName, data.Active = nullIfEmpty(u.ExternalID), nullIfEmpty(u.DisplayName), nullIfEmpty(u.UserName), types.BoolValue(u.Active)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 

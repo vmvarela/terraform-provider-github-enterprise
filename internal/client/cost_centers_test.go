@@ -261,3 +261,21 @@ func TestCostCenterCreateIncompleteKeepsIdentity(t *testing.T) {
 		t.Fatal(cc, err)
 	}
 }
+
+func TestRequestBodyKeepsRawCharacters(t *testing.T) {
+	var raw string
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		raw = string(b)
+		fmt.Fprint(w, `{"id":"1","name":"a&b<c"}`)
+	})
+	if _, err := c.CreateCostCenter(context.Background(), "e", "a&b<c"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(raw, `"a&b<c"`) {
+		t.Errorf("body was escaped: %s", raw)
+	}
+	if !strings.HasSuffix(raw, "\n") {
+		t.Errorf("body is not newline terminated: %q", raw)
+	}
+}

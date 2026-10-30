@@ -64,21 +64,15 @@ func costCenterArchived(cc *github.CostCenter) bool {
 }
 
 // strOrEmpty reads an optional SDK string as the empty string when absent.
-// strOrNull keeps SCIM strings nullable in Terraform: go-github types them as
-// plain strings, so an empty value may also mean the IdP omitted the attribute.
-func strOrNull(s string) types.String {
-	if s == "" {
-		return types.StringNull()
-	}
-	return types.StringValue(s)
-}
-
 func strOrEmpty(s *string) string {
 	if s == nil {
 		return ""
 	}
 	return *s
 }
+
+// nullIfEmpty keeps plain SDK strings nullable in Terraform. For SCIM an empty
+// value may also mean the IdP omitted the attribute.
 func nullIfEmpty(s string) types.String {
 	if s == "" {
 		return types.StringNull()

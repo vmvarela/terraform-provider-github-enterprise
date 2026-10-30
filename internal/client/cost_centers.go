@@ -84,9 +84,7 @@ func (c *Client) CostCenters(ctx context.Context, enterprise, state string) ([]*
 		if len(q) > 0 {
 			p += "?" + q.Encode()
 		}
-		var out struct {
-			CostCenters []*github.CostCenter `json:"costCenters"`
-		}
+		var out github.CostCenters
 		resp, err := c.request(ctx, http.MethodGet, p, nil, &out)
 		if err != nil {
 			return nil, err
@@ -95,6 +93,9 @@ func (c *Client) CostCenters(ctx context.Context, enterprise, state string) ([]*
 			return nil, fmt.Errorf("GitHub returned a cost center list without costCenters")
 		}
 		for _, cc := range out.CostCenters {
+			if cc == nil {
+				return nil, fmt.Errorf("GitHub returned an empty cost center in the list")
+			}
 			if err := validCostCenter(cc); err != nil {
 				return nil, err
 			}
@@ -155,6 +156,11 @@ func (c *Client) CostCenter(ctx context.Context, enterprise, id string) (*github
 		}
 		if out.Resources == nil {
 			return nil, fmt.Errorf("GitHub returned a cost center without its resources")
+		}
+		for _, r := range out.Resources {
+			if r == nil {
+				return nil, fmt.Errorf("GitHub returned an empty resource in the cost center")
+			}
 		}
 		if out.ID != id {
 			return nil, fmt.Errorf("cost center identity changed during lookup; retry the operation")
@@ -240,9 +246,14 @@ func (c *Client) changeCostCenterResources(ctx context.Context, method, enterpri
 	if len(r.Users)+len(r.Organizations)+len(r.Repositories)+len(r.EnterpriseTeams) == 0 {
 		return nil, nil
 	}
-	var out costCenterResourcesResult
+	// Decode into a pointer so an empty 200 body is distinguishable from {} and
+	// cannot silently suppress the reassignment diagnostics.
+	var out *costCenterResourcesResult
 	if _, err := c.request(ctx, method, costCenterPath(enterprise, id)+"/resource", r, &out); err != nil {
 		return nil, err
 	}
-	return &out, nil
+	if out == nil {
+		return nil, fmt.Errorf("GitHub returned an empty response when changing cost center resources")
+	}
+	return out, nil
 }
