@@ -99,7 +99,7 @@ func (p *enterpriseProvider) Resources(_ context.Context) []func() resource.Reso
 	return []func() resource.Resource{func() resource.Resource { return &teamResource{} }, func() resource.Resource { return &membershipResource{} }, func() resource.Resource { return &organizationsResource{} }, func() resource.Resource { return &costCenterResource{} }, func() resource.Resource { return &costCenterResourcesResource{} }}
 }
 func (p *enterpriseProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{func() datasource.DataSource { return &teamDataSource{} }, func() datasource.DataSource { return &teamsDataSource{} }, func() datasource.DataSource { return &membershipDataSource{} }, func() datasource.DataSource { return &organizationsDataSource{} }, func() datasource.DataSource { return &costCenterDataSource{} }, func() datasource.DataSource { return &costCentersDataSource{} }}
+	return []func() datasource.DataSource{func() datasource.DataSource { return &teamDataSource{} }, func() datasource.DataSource { return &teamsDataSource{} }, func() datasource.DataSource { return &membershipDataSource{} }, func() datasource.DataSource { return &organizationsDataSource{} }, func() datasource.DataSource { return &costCenterDataSource{} }, func() datasource.DataSource { return &costCentersDataSource{} }, func() datasource.DataSource { return &scimGroupDataSource{} }, func() datasource.DataSource { return &scimGroupsDataSource{} }, func() datasource.DataSource { return &scimUserDataSource{} }, func() datasource.DataSource { return &scimUsersDataSource{} }}
 }
 
 type providerData struct {

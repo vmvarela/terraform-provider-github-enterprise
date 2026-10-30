@@ -102,6 +102,10 @@ func teamPath(enterprise string, selector string) string {
 }
 
 func (c *Client) request(ctx context.Context, method, path string, body, out any) (http.Header, error) {
+	return c.requestAccept(ctx, method, path, "application/vnd.github+json", body, out)
+}
+
+func (c *Client) requestAccept(ctx context.Context, method, path, accept string, body, out any) (http.Header, error) {
 	u := *c.base
 	// PathEscape is applied by callers; retain it when resolving the relative path.
 	rel, err := url.Parse(path)
@@ -122,7 +126,7 @@ func (c *Client) request(ctx context.Context, method, path string, body, out any
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Accept", accept)
 	req.Header.Set("X-GitHub-Api-Version", c.version)
 	req.Header.Set("User-Agent", "terraform-provider-github-enterprise")
 	if body != nil {

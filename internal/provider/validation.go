@@ -57,6 +57,11 @@ func slugRule() validator.String {
 	return patternRule(`^(ent:)?[a-z0-9][a-z0-9-]*$`, "Use the team slug returned by GitHub, including its ent: prefix when present.")
 }
 
+// SCIM IDs are opaque, case-sensitive path segments: not UUIDs or numbers.
+func scimIDRule() validator.String {
+	return stringRule{"Must be the opaque SCIM ID returned by GitHub; empty IDs and dot segments are not allowed.", func(id string) bool { return id != "" && id != "." && id != ".." }}
+}
+
 type positiveID struct{}
 
 func (positiveID) Description(context.Context) string               { return "Must be a positive numeric team ID." }
