@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/go-github/v93/github"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,6 +21,25 @@ func testClient(t *testing.T, h http.HandlerFunc) *Client {
 	}
 	return c
 }
+func TestClientSendsConfiguredAPIVersion(t *testing.T) {
+	var got string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("X-GitHub-Api-Version")
+		fmt.Fprint(w, `[]`)
+	}))
+	defer s.Close()
+	c, err := New(s.URL+"/api/", "test-token", "2025-01-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Teams(context.Background(), "acme"); err != nil {
+		t.Fatal(err)
+	}
+	if got != "2025-01-01" {
+		t.Errorf("api version %q", got)
+	}
+}
+
 func TestFindTeamDoesNotFollowReusedSlug(t *testing.T) {
 	var paths []string
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -217,22 +237,22 @@ func TestTeamSettingPresence(t *testing.T) {
 		present      bool
 	}{
 		{"omitted", "", false},
-		{"null", `,"organization_selection_type":null,"notification_setting":null`, false},
-		{"explicit", `,"organization_selection_type":"selected","notification_setting":"notifications_disabled"`, true},
-		{"empty", `,"organization_selection_type":"","notification_setting":""`, true},
+		{"null", `,"organization_selection_type":null`, false},
+		{"explicit", `,"organization_selection_type":"selected"`, true},
+		{"empty", `,"organization_selection_type":""`, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var team Team
+			var team github.EnterpriseTeam
 			if err := json.Unmarshal([]byte(`{"id":42,"slug":"ent:platform"`+tc.fields+`}`), &team); err != nil {
 				t.Fatal(err)
 			}
-			if (team.OrganizationSelectionType != nil) != tc.present || (team.NotificationSetting != nil) != tc.present {
+			if (team.OrganizationSelectionType != nil) != tc.present {
 				t.Fatalf("lost field presence: %+v", team)
 			}
-			if tc.name == "explicit" && (*team.OrganizationSelectionType != "selected" || *team.NotificationSetting != "notifications_disabled") {
+			if tc.name == "explicit" && *team.OrganizationSelectionType != "selected" {
 				t.Fatalf("lost observed settings: %+v", team)
 			}
-			if tc.name == "empty" && (*team.OrganizationSelectionType != "" || *team.NotificationSetting != "") {
+			if tc.name == "empty" && *team.OrganizationSelectionType != "" {
 				t.Fatalf("empty values were rewritten: %+v", team)
 			}
 		})

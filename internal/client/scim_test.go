@@ -27,7 +27,7 @@ func allSCIMOps() []scimOps {
 				}
 				ids := make([]string, len(items))
 				for i := range items {
-					ids[i] = items[i].ID
+					ids[i] = *items[i].ID
 				}
 				return ids, nil
 			},
@@ -36,7 +36,7 @@ func allSCIMOps() []scimOps {
 				if err != nil {
 					return "", err
 				}
-				return item.ID, nil
+				return *item.ID, nil
 			},
 		},
 		{
@@ -48,7 +48,7 @@ func allSCIMOps() []scimOps {
 				}
 				ids := make([]string, len(items))
 				for i := range items {
-					ids[i] = items[i].ID
+					ids[i] = *items[i].ID
 				}
 				return ids, nil
 			},
@@ -57,7 +57,7 @@ func allSCIMOps() []scimOps {
 				if err != nil {
 					return "", err
 				}
-				return item.ID, nil
+				return *item.ID, nil
 			},
 		},
 	}
@@ -132,17 +132,17 @@ func TestSCIMGroupAndUserAttributes(t *testing.T) {
 	})
 	ctx := context.Background()
 	g, err := c.SCIMGroup(ctx, "e", "g1")
-	if err != nil || g.ID != "g1" || g.ExternalID == nil || *g.ExternalID != "ext-g" || g.DisplayName == nil || *g.DisplayName != "Group One" {
+	if err != nil || g.ID == nil || *g.ID != "g1" || g.ExternalID != "ext-g" || g.DisplayName != "Group One" {
 		t.Fatalf("group=%+v err=%v", g, err)
 	}
 	u, err := c.SCIMUser(ctx, "e", "u1")
-	if err != nil || u.ID != "u1" || u.ExternalID == nil || *u.ExternalID != "ext-u" || u.UserName == nil || *u.UserName != "user@example.com" || u.Active == nil || *u.Active {
+	if err != nil || u.ID == nil || *u.ID != "u1" || u.ExternalID != "ext-u" || u.UserName != "user@example.com" || u.Active {
 		t.Fatalf("user=%+v err=%v", u, err)
 	}
-	if g, err := c.SCIMGroup(ctx, "e", "g2"); err != nil || g.ExternalID != nil || g.DisplayName != nil {
+	if g, err := c.SCIMGroup(ctx, "e", "g2"); err != nil || g.ExternalID != "" || g.DisplayName != "" {
 		t.Fatalf("absent group attributes not nil: %+v %v", g, err)
 	}
-	if u, err := c.SCIMUser(ctx, "e", "u2"); err != nil || u.ExternalID != nil || u.DisplayName != nil || u.UserName != nil || u.Active != nil {
+	if u, err := c.SCIMUser(ctx, "e", "u2"); err != nil || u.ExternalID != "" || u.DisplayName != "" || u.UserName != "" || u.Active {
 		t.Fatalf("absent user attributes not nil: %+v %v", u, err)
 	}
 }

@@ -27,7 +27,6 @@ func teamDataAttributes() map[string]schema.Attribute {
 		"description":                 schema.StringAttribute{Computed: true, MarkdownDescription: "Team description."},
 		"group_id":                    schema.StringAttribute{Computed: true, MarkdownDescription: "Linked IdP group ID, or an empty string."},
 		"organization_selection_type": schema.StringAttribute{Computed: true, MarkdownDescription: "Organization selection mode, or null when GitHub omits it."},
-		"notification_setting":        schema.StringAttribute{Computed: true, MarkdownDescription: "Mention notification mode, or null when GitHub omits it."},
 	}
 }
 
@@ -104,11 +103,11 @@ func (d *teamsDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		resp.Diagnostics.AddError("List enterprise teams", err.Error())
 		return
 	}
-	objectTypes := map[string]attr.Type{"team_id": types.Int64Type, "name": types.StringType, "slug": types.StringType, "description": types.StringType, "group_id": types.StringType, "organization_selection_type": types.StringType, "notification_setting": types.StringType}
+	objectTypes := map[string]attr.Type{"team_id": types.Int64Type, "name": types.StringType, "slug": types.StringType, "description": types.StringType, "group_id": types.StringType, "organization_selection_type": types.StringType}
 	values := make([]attr.Value, 0, len(teams))
 	for _, t := range teams {
 
-		v, ds := types.ObjectValue(objectTypes, map[string]attr.Value{"team_id": types.Int64Value(t.ID), "name": types.StringValue(t.Name), "slug": types.StringValue(t.Slug), "description": types.StringValue(t.Description), "group_id": types.StringValue(t.GroupID), "organization_selection_type": types.StringPointerValue(t.OrganizationSelectionType), "notification_setting": types.StringPointerValue(t.NotificationSetting)})
+		v, ds := types.ObjectValue(objectTypes, map[string]attr.Value{"team_id": types.Int64Value(t.ID), "name": types.StringValue(t.Name), "slug": types.StringValue(t.Slug), "description": types.StringValue(strOrEmpty(t.Description)), "group_id": types.StringValue(t.GroupID), "organization_selection_type": types.StringPointerValue(t.OrganizationSelectionType)})
 		resp.Diagnostics.Append(ds...)
 		values = append(values, v)
 	}
@@ -159,7 +158,7 @@ func (d *membershipDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 	data.ID = types.StringValue(data.Enterprise.ValueString() + "/" + strconv.FormatInt(data.TeamID.ValueInt64(), 10) + "/" + data.Username.ValueString())
-	data.UserID = types.Int64Value(u.ID)
+	data.UserID = types.Int64Value(u.GetID())
 	data.Member = types.BoolValue(true)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

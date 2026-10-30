@@ -26,6 +26,6 @@ data "github_enterprise_teams" "example" {
 | `id` | `String` | Read-only | Enterprise slug. |
 | `teams` | `list(object)` | Read-only | Enterprise teams in API order. |
 
-Each team object contains `team_id`, `name`, `slug`, `description`, `group_id`, `organization_selection_type`, and `notification_setting`.
+Each team object contains `team_id`, `name`, `slug`, `description`, `group_id`, and `organization_selection_type`.
 
 See the [provider guide](https://github.com/vmvarela/terraform-provider-github-enterprise#authentication) for authentication, ownership and compatibility requirements.

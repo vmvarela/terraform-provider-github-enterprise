@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"github.com/google/go-github/v93/github"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -13,7 +14,7 @@ import (
 func TestPartialOrganizationUpdateRetainsObservedState(t *testing.T) {
 	ctx := context.Background()
 	api, base := newAPI(t)
-	api.store("acme").team = &client.Team{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: new("selected")}
+	api.store("acme").team = &github.EnterpriseTeam{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: new("selected")}
 	api.store("acme").orgs["org-one"] = true
 	api.failRemoval = true
 	c, err := client.New(base, "mock-token", client.DefaultAPIVersion)
@@ -78,7 +79,7 @@ func TestForbiddenTeamReadKeepsState(t *testing.T) {
 	r := &teamResource{configuredResource{client: c}}
 	var schemaResp resource.SchemaResponse
 	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
-	data := teamModel{ID: types.StringValue("acme/42"), Enterprise: types.StringValue("acme"), TeamID: types.Int64Value(42), Slug: types.StringValue("ent:platform"), Name: types.StringValue("Platform"), Description: types.StringValue(""), GroupID: types.StringValue(""), Selection: types.StringValue("disabled"), Notifications: types.StringValue("notifications_enabled")}
+	data := teamModel{ID: types.StringValue("acme/42"), Enterprise: types.StringValue("acme"), TeamID: types.Int64Value(42), Slug: types.StringValue("ent:platform"), Name: types.StringValue("Platform"), Description: types.StringValue(""), GroupID: types.StringValue(""), Selection: types.StringValue("disabled")}
 	state := tfsdk.State{Schema: schemaResp.Schema}
 	if ds := state.Set(ctx, &data); ds.HasError() {
 		t.Fatal(ds)
@@ -100,7 +101,7 @@ func TestMissingTeamReadRemovesState(t *testing.T) {
 	r := &teamResource{configuredResource{client: c}}
 	var schemaResp resource.SchemaResponse
 	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
-	data := teamModel{ID: types.StringValue("acme/42"), Enterprise: types.StringValue("acme"), TeamID: types.Int64Value(42), Slug: types.StringValue("ent:platform"), Name: types.StringValue("Platform"), Description: types.StringValue(""), GroupID: types.StringValue(""), Selection: types.StringValue("disabled"), Notifications: types.StringValue("notifications_enabled")}
+	data := teamModel{ID: types.StringValue("acme/42"), Enterprise: types.StringValue("acme"), TeamID: types.Int64Value(42), Slug: types.StringValue("ent:platform"), Name: types.StringValue("Platform"), Description: types.StringValue(""), GroupID: types.StringValue(""), Selection: types.StringValue("disabled")}
 	state := tfsdk.State{Schema: schemaResp.Schema}
 	if ds := state.Set(ctx, &data); ds.HasError() {
 		t.Fatal(ds)

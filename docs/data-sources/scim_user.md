@@ -24,7 +24,7 @@ data "github_enterprise_scim_user" "example" {
 
 | Attribute | Type | Requirement | Description |
 | --- | --- | --- | --- |
-| `active` | `Bool` | Read-only | SCIM active flag, or null when omitted. An explicit false is preserved. |
+| `active` | `Bool` | Read-only | SCIM active flag. An explicit false is preserved; go-github types this as a plain bool, so an omitted flag also reads as false. |
 | `display_name` | `String` | Read-only | SCIM displayName, or null when omitted. |
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `external_id` | `String` | Read-only | IdP externalId, or null when omitted. |

@@ -42,11 +42,13 @@ ID match is inconclusive: retry the operation, retaining the existing state.
 GitHub can mask authorization failures as 404, so verify token access before
 applying a plan that proposes recreating missing resources.
 
-Team creation defaults to `organization_selection_type = "disabled"` and
-`notification_setting = "notifications_enabled"`. These are request defaults, not
-substitutes for missing remote values. Refresh and import fail without changing
-state if GitHub omits either setting. Data sources expose omitted settings as
-`null`. Assignment creation and updates require an observed `selected` mode,
+Team creation defaults to `organization_selection_type = "disabled"`. This is a
+request default, not a substitute for a missing remote value. Refresh and import
+fail without changing state if GitHub omits `organization_selection_type`. Data
+sources expose an omitted mode as `null`.
+
+The provider does not manage `notification_setting`: go-github v93 does not model
+it, so it cannot be read back or drift-checked. Assignment creation and updates require an observed `selected` mode,
 because `selected` cannot be verified otherwise.
 
 Removing a description clears it. An empty `group_id` unlinks the IdP group using

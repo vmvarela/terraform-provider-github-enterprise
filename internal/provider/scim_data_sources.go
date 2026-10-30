@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 
+	"github.com/google/go-github/v93/github"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -11,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/vmvarela/terraform-provider-github-enterprise/internal/client"
 )
 
 const scimDescription = "Reads existing Enterprise Managed Users SCIM identities. Read-only: it never provisions users or groups and never manages membership; the IdP remains the only SCIM writer."
@@ -32,14 +32,14 @@ func scimUserAttributes() map[string]schema.Attribute {
 		"external_id":  schema.StringAttribute{Computed: true, MarkdownDescription: "IdP externalId, or null when omitted."},
 		"display_name": schema.StringAttribute{Computed: true, MarkdownDescription: "SCIM displayName, or null when omitted."},
 		"user_name":    schema.StringAttribute{Computed: true, MarkdownDescription: "SCIM userName, which is not necessarily the normalized GitHub login; null when omitted."},
-		"active":       schema.BoolAttribute{Computed: true, MarkdownDescription: "SCIM active flag, or null when omitted. An explicit false is preserved."},
+		"active":       schema.BoolAttribute{Computed: true, MarkdownDescription: "SCIM active flag. An explicit false is preserved; go-github types this as a plain bool, so an omitted flag also reads as false."},
 	}
 }
-func scimGroupObject(g client.SCIMGroup) (types.Object, diag.Diagnostics) {
-	return types.ObjectValue(scimGroupTypes, map[string]attr.Value{"scim_group_id": types.StringValue(g.ID), "external_id": types.StringPointerValue(g.ExternalID), "display_name": types.StringPointerValue(g.DisplayName)})
+func scimGroupObject(g *github.SCIMEnterpriseGroupAttributes) (types.Object, diag.Diagnostics) {
+	return types.ObjectValue(scimGroupTypes, map[string]attr.Value{"scim_group_id": types.StringValue(strOrEmpty(g.ID)), "external_id": strOrNull(g.ExternalID), "display_name": strOrNull(g.DisplayName)})
 }
-func scimUserObject(u client.SCIMUser) (types.Object, diag.Diagnostics) {
-	return types.ObjectValue(scimUserTypes, map[string]attr.Value{"scim_user_id": types.StringValue(u.ID), "external_id": types.StringPointerValue(u.ExternalID), "display_name": types.StringPointerValue(u.DisplayName), "user_name": types.StringPointerValue(u.UserName), "active": types.BoolPointerValue(u.Active)})
+func scimUserObject(u *github.SCIMEnterpriseUserAttributes) (types.Object, diag.Diagnostics) {
+	return types.ObjectValue(scimUserTypes, map[string]attr.Value{"scim_user_id": types.StringValue(strOrEmpty(u.ID)), "external_id": strOrNull(u.ExternalID), "display_name": strOrNull(u.DisplayName), "user_name": strOrNull(u.UserName), "active": types.BoolValue(u.Active)})
 }
 
 // scimListID is deterministic and includes the escaped filter so distinct
@@ -87,8 +87,8 @@ func (d *scimGroupDataSource) Read(ctx context.Context, req datasource.ReadReque
 		resp.Diagnostics.AddError("Read SCIM group", err.Error())
 		return
 	}
-	data.ID = types.StringValue(enterprise.ValueString() + "/" + g.ID)
-	data.ExternalID, data.DisplayName = types.StringPointerValue(g.ExternalID), types.StringPointerValue(g.DisplayName)
+	data.ID = types.StringValue(enterprise.ValueString() + "/" + strOrEmpty(g.ID))
+	data.ExternalID, data.DisplayName = strOrNull(g.ExternalID), strOrNull(g.DisplayName)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -108,7 +108,7 @@ func (d *scimGroupsDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "Deterministic query identity: enterprise_slug/groups, plus the escaped filter when set."},
 		"enterprise_slug": enterpriseDataAttribute(),
 		"filter":          schema.StringAttribute{Optional: true, MarkdownDescription: "One SCIM filter passed to GitHub unchanged. Supports group externalId, id and displayName; multiple filters are not supported."},
-		"groups":          schema.ListNestedAttribute{Computed: true, MarkdownDescription: "SCIM groups in API order. Each entry has the raw scim_group_id (for team group_id), nullable IdP external_id and nullable display_name.", NestedObject: schema.NestedAttributeObject{Attributes: scimGroupAttributes()}},
+		"groups":          schema.ListNestedAttribute{Computed: true, MarkdownDescription: "SCIM groups in API order. Each entry has the raw scim_group_id (for team group_id), IdP external_id and display_name, null when empty.", NestedObject: schema.NestedAttributeObject{Attributes: scimGroupAttributes()}},
 	}}
 }
 func (d *scimGroupsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -183,8 +183,8 @@ func (d *scimUserDataSource) Read(ctx context.Context, req datasource.ReadReques
 		resp.Diagnostics.AddError("Read SCIM user", err.Error())
 		return
 	}
-	data.ID = types.StringValue(enterprise.ValueString() + "/" + u.ID)
-	data.ExternalID, data.DisplayName, data.UserName, data.Active = types.StringPointerValue(u.ExternalID), types.StringPointerValue(u.DisplayName), types.StringPointerValue(u.UserName), types.BoolPointerValue(u.Active)
+	data.ID = types.StringValue(enterprise.ValueString() + "/" + strOrEmpty(u.ID))
+	data.ExternalID, data.DisplayName, data.UserName, data.Active = strOrNull(u.ExternalID), strOrNull(u.DisplayName), strOrNull(u.UserName), types.BoolValue(u.Active)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -204,7 +204,7 @@ func (d *scimUsersDataSource) Schema(_ context.Context, _ datasource.SchemaReque
 		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "Deterministic query identity: enterprise_slug/users, plus the escaped filter when set."},
 		"enterprise_slug": enterpriseDataAttribute(),
 		"filter":          schema.StringAttribute{Optional: true, MarkdownDescription: "One SCIM filter passed to GitHub unchanged. Supports user externalId, id, displayName and userName; active filters and multiple filters are not supported."},
-		"users":           schema.ListNestedAttribute{Computed: true, MarkdownDescription: "SCIM users in API order. Each entry has the raw scim_user_id, nullable IdP external_id, display_name, user_name (not necessarily the GitHub login) and active flag. Explicit active=false is preserved.", NestedObject: schema.NestedAttributeObject{Attributes: scimUserAttributes()}},
+		"users":           schema.ListNestedAttribute{Computed: true, MarkdownDescription: "SCIM users in API order. Each entry has the raw scim_user_id, IdP external_id, display_name, user_name (not necessarily the GitHub login) and active flag; empty strings read as null. Explicit active=false is preserved.", NestedObject: schema.NestedAttributeObject{Attributes: scimUserAttributes()}},
 	}}
 }
 func (d *scimUsersDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {

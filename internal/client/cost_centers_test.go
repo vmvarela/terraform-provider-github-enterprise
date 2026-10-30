@@ -46,7 +46,7 @@ func TestCostCenterCreateUpdatePayloads(t *testing.T) {
 	var calls []string
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
-		calls = append(calls, r.Method+" "+r.URL.EscapedPath()+" "+string(b))
+		calls = append(calls, r.Method+" "+r.URL.EscapedPath()+" "+strings.TrimSuffix(string(b), "\n"))
 		if r.Header.Get("Content-Type") != "application/json" {
 			t.Error("content type")
 		}
@@ -71,7 +71,7 @@ func TestCostCenterReadRequiresResourcesButNotState(t *testing.T) {
 	body := `{"id":"1","name":"A","resources":[]}`
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, body) })
 	cc, err := c.CostCenter(context.Background(), "e", "1")
-	if err != nil || cc.State != "" || cc.Resources == nil {
+	if err != nil || cc.State != nil || cc.Resources == nil {
 		t.Fatal(cc, err)
 	}
 	body = `{"id":"1","name":"A"}`
@@ -145,7 +145,7 @@ func TestCostCenterGetNeverEndingPagesBounded(t *testing.T) {
 		calls++
 		fmt.Fprint(w, `{"id":"1","name":"A","has_next_page":true,"resources":[{"type":"U","name":"u"}]}`)
 	})
-	if _, err := c.CostCenter(context.Background(), "e", "1"); err == nil || calls != maxCostCenterPages {
+	if _, err := c.CostCenter(context.Background(), "e", "1"); err == nil || calls != maxPages {
 		t.Fatalf("calls=%d err=%v", calls, err)
 	}
 }
@@ -171,7 +171,7 @@ func TestCostCenterResources(t *testing.T) {
 	var got []string
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
-		got = append(got, r.Method+" "+r.URL.Path+" "+string(b))
+		got = append(got, r.Method+" "+r.URL.Path+" "+strings.TrimSuffix(string(b), "\n"))
 		fmt.Fprint(w, `{"message":"m","reassigned_resources":[{"resource_type":"User","name":"u","previous_cost_center":"old"},{"resource_type":"Repo","name":"r","previous_cost_center":"older"}]}`)
 	})
 	res, err := c.AddCostCenterResources(context.Background(), "e", "1", CostCenterAssignments{Users: []string{"u"}, EnterpriseTeams: []string{"t"}})

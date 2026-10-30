@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/google/go-github/v93/github"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -23,22 +24,21 @@ var (
 
 type teamResource struct{ configuredResource }
 type teamModel struct {
-	ID            types.String `tfsdk:"id"`
-	Enterprise    types.String `tfsdk:"enterprise_slug"`
-	TeamID        types.Int64  `tfsdk:"team_id"`
-	Slug          types.String `tfsdk:"slug"`
-	Name          types.String `tfsdk:"name"`
-	Description   types.String `tfsdk:"description"`
-	GroupID       types.String `tfsdk:"group_id"`
-	Selection     types.String `tfsdk:"organization_selection_type"`
-	Notifications types.String `tfsdk:"notification_setting"`
+	ID          types.String `tfsdk:"id"`
+	Enterprise  types.String `tfsdk:"enterprise_slug"`
+	TeamID      types.Int64  `tfsdk:"team_id"`
+	Slug        types.String `tfsdk:"slug"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
+	GroupID     types.String `tfsdk:"group_id"`
+	Selection   types.String `tfsdk:"organization_selection_type"`
 }
 
 func (r *teamResource) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = resourceTypePrefix + "_team"
 }
 func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{MarkdownDescription: "Manages a GitHub Enterprise Cloud team. Numeric identity is preserved across renames. Refresh and import fail without changing state if GitHub omits organization_selection_type or notification_setting; creation defaults are never treated as observed API values.", Attributes: map[string]schema.Attribute{
+	resp.Schema = schema.Schema{MarkdownDescription: "Manages a GitHub Enterprise Cloud team. Numeric identity is preserved across renames. Refresh and import fail without changing state if GitHub omits organization_selection_type; creation defaults are never treated as observed API values.", Attributes: map[string]schema.Attribute{
 		"id":                          schema.StringAttribute{Computed: true, MarkdownDescription: "Stable identity: enterprise_slug/team_id.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		"enterprise_slug":             schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Enterprise account slug. Defaults to the provider-level enterprise_slug.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"team_id":                     schema.Int64Attribute{Computed: true, MarkdownDescription: "Stable numeric team ID. Use this in membership and organization assignment resources.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
@@ -47,25 +47,37 @@ func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 		"description":                 schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString(""), MarkdownDescription: "Team description. Removing it clears the remote description."},
 		"group_id":                    schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString(""), MarkdownDescription: "IdP group ID. An empty value unlinks the group by sending an explicit JSON null. Do not manage direct memberships for an IdP-linked team."},
 		"organization_selection_type": schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("disabled"), MarkdownDescription: "disabled, selected, or all. Use selected with the team_organizations resource. Changing this may revoke organization access.", Validators: []validator.String{oneOf("disabled", "selected", "all")}},
-		"notification_setting":        schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("notifications_enabled"), MarkdownDescription: "Whether mentions notify members.", Validators: []validator.String{oneOf("notifications_enabled", "notifications_disabled")}},
 	}}
 }
 
-func (m *teamModel) identity(t *client.Team) {
+func (m *teamModel) identity(t *github.EnterpriseTeam) {
 	m.TeamID = types.Int64Value(t.ID)
 	m.ID = types.StringValue(m.Enterprise.ValueString() + "/" + strconv.FormatInt(t.ID, 10))
 	m.Slug = types.StringValue(t.Slug)
 }
-func (m *teamModel) refresh(t *client.Team) {
+func (m *teamModel) refresh(t *github.EnterpriseTeam) {
 	m.identity(t)
 	m.Name = types.StringValue(t.Name)
-	m.Description = types.StringValue(t.Description)
+	m.Description = types.StringValue(strOrEmpty(t.Description))
 	m.GroupID = types.StringValue(t.GroupID)
 	m.Selection = types.StringPointerValue(t.OrganizationSelectionType)
-	m.Notifications = types.StringPointerValue(t.NotificationSetting)
 }
-func (m teamModel) body() map[string]any {
-	body := map[string]any{"name": m.Name.ValueString(), "description": m.Description.ValueString(), "organization_selection_type": m.Selection.ValueString(), "notification_setting": m.Notifications.ValueString()}
+func (m teamModel) body() github.EnterpriseTeamCreateOrUpdateRequest {
+	body := github.EnterpriseTeamCreateOrUpdateRequest{
+		Name:                      m.Name.ValueString(),
+		Description:               github.String(m.Description.ValueString()),
+		OrganizationSelectionType: github.String(m.Selection.ValueString()),
+	}
+	if m.GroupID.ValueString() != "" {
+		body.GroupID = github.String(m.GroupID.ValueString())
+	}
+	return body
+}
+
+// updateBody stays a map: unlinking an IdP group needs an explicit JSON null,
+// which the typed request cannot express.
+func (m teamModel) updateBody() map[string]any {
+	body := map[string]any{"name": m.Name.ValueString(), "description": m.Description.ValueString(), "organization_selection_type": m.Selection.ValueString()}
 	if m.GroupID.ValueString() != "" {
 		body["group_id"] = m.GroupID.ValueString()
 	}
@@ -104,8 +116,8 @@ func (r *teamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		resp.Diagnostics.AddError("Read enterprise team", err.Error())
 		return
 	}
-	if t.OrganizationSelectionType == nil || t.NotificationSetting == nil {
-		resp.Diagnostics.AddError("Incomplete enterprise team response", "GitHub did not return organization_selection_type or notification_setting. The team cannot be safely refreshed or imported without these settings. Existing state has been retained; verify API permissions and compatibility before retrying.")
+	if t.OrganizationSelectionType == nil {
+		resp.Diagnostics.AddError("Incomplete enterprise team response", "GitHub did not return organization_selection_type. The team cannot be safely refreshed or imported without this setting. Existing state has been retained; verify API permissions and compatibility before retrying.")
 		return
 	}
 	data.refresh(t)
@@ -123,7 +135,7 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		resp.Diagnostics.AddError("Resolve enterprise team", err.Error())
 		return
 	}
-	body := data.body()
+	body := data.updateBody()
 	// Never re-send group_id for unrelated updates: assigning it can replace
 	// direct members. Explicit null is distinct from omitting the field.
 	delete(body, "group_id")

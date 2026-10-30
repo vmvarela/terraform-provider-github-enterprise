@@ -88,7 +88,7 @@ func writeDoc(title, path, example string, schema *tfprotov6.Schema, importText 
 		fmt.Fprintf(&out, "| `%s` | `%s` | %s | %s |\n", a.Name, typ, req, strings.ReplaceAll(a.Description, "|", "\\|"))
 	}
 	if title == "github_enterprise_teams (Data Source)" {
-		fmt.Fprintln(&out, "\nEach team object contains `team_id`, `name`, `slug`, `description`, `group_id`, `organization_selection_type`, and `notification_setting`.")
+		fmt.Fprintln(&out, "\nEach team object contains `team_id`, `name`, `slug`, `description`, `group_id`, and `organization_selection_type`.")
 	}
 	if importText != "" {
 		fmt.Fprintf(&out, "\n## Import\n\n```sh\n%s```\n", importText)

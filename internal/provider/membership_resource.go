@@ -56,7 +56,7 @@ func (r *membershipResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 	data.ID = types.StringValue(data.Enterprise.ValueString() + "/" + strconv.FormatInt(data.TeamID.ValueInt64(), 10) + "/" + data.Username.ValueString())
-	data.UserID = types.Int64Value(u.ID)
+	data.UserID = types.Int64Value(u.GetID())
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 func (r *membershipResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -74,7 +74,7 @@ func (r *membershipResource) Read(ctx context.Context, req resource.ReadRequest,
 		resp.Diagnostics.AddError("Read enterprise team membership", err.Error())
 		return
 	}
-	data.UserID = types.Int64Value(u.ID)
+	data.UserID = types.Int64Value(u.GetID())
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 func (r *membershipResource) Update(_ context.Context, _ resource.UpdateRequest, resp *resource.UpdateResponse) {
