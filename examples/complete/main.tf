@@ -6,13 +6,18 @@ terraform {
     }
     github-enterprise = {
       source  = "vmvarela/github-enterprise"
-      version = "= 0.1.0"
+      version = "~> 0.4"
     }
   }
 }
 
 provider "github" {}
-provider "github-enterprise" {}
+
+# Set the enterprise once here; every resource below inherits it. A value set on
+# an individual resource or data source wins over this one.
+provider "github-enterprise" {
+  enterprise_slug = var.enterprise_slug
+}
 
 variable "enterprise_slug" {
   type = string
@@ -35,7 +40,6 @@ data "github_enterprise" "account" {
 resource "github_enterprise_team" "platform" {
   provider = github-enterprise
 
-  enterprise_slug             = var.enterprise_slug
   name                        = "Platform"
   description                 = "Platform Engineering"
   organization_selection_type = "selected"
@@ -44,15 +48,13 @@ resource "github_enterprise_team" "platform" {
 resource "github_enterprise_team_membership" "member" {
   provider = github-enterprise
 
-  enterprise_slug = var.enterprise_slug
-  team_id         = github_enterprise_team.platform.team_id
-  username        = var.username
+  team_id  = github_enterprise_team.platform.team_id
+  username = var.username
 }
 
 resource "github_enterprise_team_organizations" "platform" {
   provider = github-enterprise
 
-  enterprise_slug    = var.enterprise_slug
   team_id            = github_enterprise_team.platform.team_id
   organization_slugs = var.organization_slugs
 }
@@ -60,29 +62,25 @@ resource "github_enterprise_team_organizations" "platform" {
 data "github_enterprise_team" "platform" {
   provider = github-enterprise
 
-  enterprise_slug = var.enterprise_slug
-  slug            = github_enterprise_team.platform.slug
+  slug = github_enterprise_team.platform.slug
 }
 
 data "github_enterprise_teams" "all" {
   provider = github-enterprise
 
-  enterprise_slug = var.enterprise_slug
-  depends_on      = [github_enterprise_team.platform]
+  depends_on = [github_enterprise_team.platform]
 }
 
 data "github_enterprise_team_membership" "member" {
   provider = github-enterprise
 
-  enterprise_slug = var.enterprise_slug
-  team_id         = github_enterprise_team.platform.team_id
-  username        = github_enterprise_team_membership.member.username
+  team_id  = github_enterprise_team.platform.team_id
+  username = github_enterprise_team_membership.member.username
 }
 
 data "github_enterprise_team_organizations" "platform" {
   provider = github-enterprise
 
-  enterprise_slug = var.enterprise_slug
-  team_id         = github_enterprise_team.platform.team_id
-  depends_on      = [github_enterprise_team_organizations.platform]
+  team_id    = github_enterprise_team.platform.team_id
+  depends_on = [github_enterprise_team_organizations.platform]
 }

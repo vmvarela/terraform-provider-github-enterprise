@@ -345,3 +345,22 @@ func TestDecodeErrorDoesNotEchoServerValue(t *testing.T) {
 		t.Fatalf("err = %v, want a sanitized error", err)
 	}
 }
+
+func TestErrorHintNamesTheNextStep(t *testing.T) {
+	for status, want := range map[int]string{
+		http.StatusUnauthorized:        "valid and has not expired",
+		http.StatusForbidden:           "enterprise scope",
+		http.StatusNotFound:            "cannot see it",
+		http.StatusTooManyRequests:     "wait before retrying",
+		http.StatusInternalServerError: "retry later",
+	} {
+		c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(status)
+			fmt.Fprint(w, `{}`)
+		})
+		_, err := c.Teams(context.Background(), "acme")
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("status %d: %v", status, err)
+		}
+	}
+}

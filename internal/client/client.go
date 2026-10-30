@@ -41,7 +41,28 @@ func (e *APIError) Error() string {
 	if e.RetryAfter != "" {
 		s += "; retry after " + e.RetryAfter
 	}
+	if hint := statusHint(e.Status); hint != "" {
+		s += ". " + hint
+	}
 	return s
+}
+
+// statusHint tells the reader what to do next. GitHub reports permission
+// failures as 404, so the message must name both possibilities.
+func statusHint(status int) string {
+	switch {
+	case status == http.StatusUnauthorized:
+		return "check that the token is valid and has not expired"
+	case status == http.StatusForbidden:
+		return "the token may lack the required enterprise scope, or the account may not be an enterprise owner"
+	case status == http.StatusNotFound:
+		return "the object does not exist, or the token cannot see it; check the slug or ID and the token permissions"
+	case status == http.StatusTooManyRequests:
+		return "GitHub rate-limited the request; wait before retrying"
+	case status >= 500:
+		return "GitHub returned a server error; retry later"
+	}
+	return ""
 }
 
 func IsNotFound(err error) bool {

@@ -28,7 +28,7 @@ resource "github_enterprise_team" "example" {
 | --- | --- | --- | --- |
 | `description` | `String` | Optional | Team description. Removing it clears the remote description. |
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
-| `group_id` | `String` | Optional | IdP group ID. An empty value unlinks the group by sending an explicit JSON null. Do not manage direct memberships for an IdP-linked team. |
+| `group_id` | `String` | Optional | IdP group ID, taken from the scim_group or scim_groups data sources. An empty value unlinks the group by sending an explicit JSON null. Do not manage direct memberships for an IdP-linked team. |
 | `id` | `String` | Read-only | Stable identity: enterprise_slug/team_id. |
 | `name` | `String` | Required | Team name. |
 | `organization_selection_type` | `String` | Optional | disabled, selected, or all. Use selected with the team_organizations resource. Changing this may revoke organization access. |

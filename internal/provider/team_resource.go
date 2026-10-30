@@ -45,7 +45,7 @@ func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 		"slug":                        schema.StringAttribute{Computed: true, MarkdownDescription: "GitHub-generated team slug; can change when the team is renamed."},
 		"name":                        schema.StringAttribute{Required: true, MarkdownDescription: "Team name.", Validators: []validator.String{nameRule()}},
 		"description":                 schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString(""), MarkdownDescription: "Team description. Removing it clears the remote description."},
-		"group_id":                    schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString(""), MarkdownDescription: "IdP group ID. An empty value unlinks the group by sending an explicit JSON null. Do not manage direct memberships for an IdP-linked team."},
+		"group_id":                    schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString(""), MarkdownDescription: "IdP group ID, taken from the scim_group or scim_groups data sources. An empty value unlinks the group by sending an explicit JSON null. Do not manage direct memberships for an IdP-linked team."},
 		"organization_selection_type": schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("disabled"), MarkdownDescription: "disabled, selected, or all. Use selected with the team_organizations resource. Changing this may revoke organization access.", Validators: []validator.String{oneOf("disabled", "selected", "all")}},
 	}}
 }
