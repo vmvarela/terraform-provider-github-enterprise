@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/google/go-github/v93/github"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -68,7 +69,7 @@ func emptyAssignments(a client.CostCenterAssignments) bool {
 
 // assignmentsOf maps GitHub's documented read types; any other type or a
 // blank name fails closed because it could not be managed or removed safely.
-func assignmentsOf(cc *client.CostCenter) (a client.CostCenterAssignments, err error) {
+func assignmentsOf(cc *github.CostCenter) (a client.CostCenterAssignments, err error) {
 	for _, res := range cc.Resources {
 		if strings.TrimSpace(res.Name) == "" {
 			return a, fmt.Errorf("cost center %s contains a resource without a name; refusing to manage it", cc.ID)

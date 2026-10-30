@@ -27,6 +27,6 @@ data "github_enterprise_scim_users" "example" {
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `filter` | `String` | Optional | One SCIM filter passed to GitHub unchanged. Supports user externalId, id, displayName and userName; active filters and multiple filters are not supported. |
 | `id` | `String` | Read-only | Deterministic query identity: enterprise_slug/users, plus the escaped filter when set. |
-| `users` | `list(object)` | Read-only | SCIM users in API order. Each entry has the raw scim_user_id, nullable IdP external_id, display_name, user_name (not necessarily the GitHub login) and active flag. Explicit active=false is preserved. |
+| `users` | `list(object)` | Read-only | SCIM users in API order. Each entry has the raw scim_user_id, IdP external_id, display_name, user_name (not necessarily the GitHub login) and active flag; empty strings read as null. Explicit active=false is preserved. |
 
 See the [provider guide](https://github.com/vmvarela/terraform-provider-github-enterprise#authentication) for authentication, ownership and compatibility requirements.

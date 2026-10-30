@@ -125,8 +125,10 @@ with `manage_billing:enterprise` held by an enterprise owner or billing manager.
 Organization-owner tokens cannot establish cross-center exclusivity. GitHub App
 Enterprise billing permission is not generally available; verify that the target
 enterprise can grant it and that the required operations work before using an App
-token. Fine-grained PATs cannot call these endpoints. No cost-center live run has
-been recorded yet.
+token. Fine-grained PATs cannot call these endpoints. Both cost-center suites
+passed live on 2026-10-30 with a classic PAT; the assignment suite used a
+dedicated test organization, because the user fixture was already assigned to an
+active cost center and the preflight correctly refused it.
 
 For cost centers, capture the baseline of both active and deleted IDs before
 creation and accept only a newly returned ID absent from it. Verify that exact ID
@@ -147,7 +149,9 @@ remain — inspect the enterprise and resolve it manually rather than guessing.
 All three team suites passed against `api.github.com` on 2026-10-19 using a classic PAT
 and API version `2026-03-10`. `TestAccSCIM` passed read-only against `api.github.com`
 on 2026-10-30 using a classic PAT, exercising single-object lookups and `id eq` filtered
-lists only. Live coexistence with `integrations/github` 6.13.0 was verified on 2026-10-23
+lists only. Both cost-center suites passed against `api.github.com` on 2026-10-30 using
+a classic PAT: create, read, rename, import, resource assignment and archival on the
+test-created center. Live coexistence with `integrations/github` 6.13.0 was verified on 2026-10-23
 through `examples/complete`. GitHub App tokens, fine-grained PATs, IdP group lifecycle,
 multi-page SCIM pagination, concurrent IdP changes and data-residency hosts remain
 unverified; record a new result here when one of them is exercised.

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/go-github/v93/github"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -71,10 +72,10 @@ func (v organizationSetRule) ValidateSet(ctx context.Context, req validator.SetR
 	}
 }
 
-func organizationNames(orgs []client.Organization) []string {
+func organizationNames(orgs []*github.Organization) []string {
 	names := make([]string, 0, len(orgs))
 	for _, o := range orgs {
-		names = append(names, strings.ToLower(o.Login))
+		names = append(names, strings.ToLower(o.GetLogin()))
 	}
 	sort.Strings(names)
 	return names

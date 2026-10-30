@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/go-github/v93/github"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -27,7 +28,7 @@ import (
 type ccRec struct {
 	id, name, state string
 	azure           *string
-	res             []client.CostCenterResource
+	res             []github.CostCenterResource
 }
 type ccAPI struct {
 	mu      sync.Mutex
@@ -57,14 +58,14 @@ func newCCAPI(t *testing.T) (*ccAPI, string) {
 	t.Cleanup(s.Close)
 	return a, s.URL
 }
-func (a *ccAPI) seed(id, name string, res ...client.CostCenterResource) *ccRec {
+func (a *ccAPI) seed(id, name string, res ...github.CostCenterResource) *ccRec {
 	c := &ccRec{id: id, name: name, state: "active", res: res}
 	a.centers[id] = c
 	a.order = append(a.order, id)
 	return c
 }
-func res(typ, name string) client.CostCenterResource {
-	return client.CostCenterResource{Type: typ, Name: name}
+func res(typ, name string) github.CostCenterResource {
+	return github.CostCenterResource{Type: typ, Name: name}
 }
 func (a *ccAPI) held(id string) []string {
 	a.mu.Lock()

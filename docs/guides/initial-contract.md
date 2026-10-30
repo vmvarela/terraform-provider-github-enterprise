@@ -42,11 +42,13 @@ ID match is inconclusive: retry the operation, retaining the existing state.
 GitHub can mask authorization failures as 404, so verify token access before
 applying a plan that proposes recreating missing resources.
 
-Team creation defaults to `organization_selection_type = "disabled"` and
-`notification_setting = "notifications_enabled"`. These are request defaults, not
-substitutes for missing remote values. Refresh and import fail without changing
-state if GitHub omits either setting. Data sources expose omitted settings as
-`null`. Assignment creation and updates require an observed `selected` mode,
+Team creation defaults to `organization_selection_type = "disabled"`. This is a
+request default, not a substitute for a missing remote value. Refresh and import
+fail without changing state if GitHub omits `organization_selection_type`. Data
+sources expose an omitted mode as `null`.
+
+The provider does not manage `notification_setting`: go-github v93 does not model
+it, so it cannot be read back or drift-checked. Assignment creation and updates require an observed `selected` mode,
 because `selected` cannot be verified otherwise.
 
 Removing a description clears it. An empty `group_id` unlinks the IdP group using
@@ -101,9 +103,11 @@ writer. They are available from v0.3.0 and not in 0.2.x builds.
 
 SCIM IDs are opaque, case-sensitive strings, distinct from IdP `external_id`
 values and numeric GitHub IDs. Use a group's `scim_group_id` for a team's
-`group_id`, not its composite Terraform `id`. Missing optional properties remain
-null; an explicit inactive user remains `active = false`. User lists include
-soft-deprovisioned users but not permanently deleted identities.
+`group_id`, not its composite Terraform `id`. Empty optional properties read as
+null; an inactive user reads `active = false`, and an omitted `active` is
+indistinguishable from an explicit false because the library types it as a plain
+boolean. User lists include soft-deprovisioned users but not permanently deleted
+identities.
 
 Look up an existing IdP group by its GitHub-issued
 SCIM ID and use that raw identity when linking a team:

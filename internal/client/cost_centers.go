@@ -6,32 +6,17 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+
+	"github.com/google/go-github/v93/github"
 )
-
-// maxCostCenterPages bounds pagination loops against a misbehaving server.
-const maxCostCenterPages = 1000
-
-const costCenterPageSize = 100
 
 const costCenterArchivedState = "CostCenterArchived"
 
-// CostCenterResource keeps GitHub's raw type and name; no category mapping is guessed.
-type CostCenterResource struct {
-	Type string `json:"type"`
-	Name string `json:"name"`
-}
+const costCenterPageSize = 100
 
-// CostCenter ID is an opaque, stable string. State is optional and never defaulted.
-// Resources is nil when absent from a read response and non-nil (possibly empty) when present.
-type CostCenter struct {
-	ID                string               `json:"id"`
-	Name              string               `json:"name"`
-	State             string               `json:"state,omitempty"`
-	AzureSubscription *string              `json:"azure_subscription,omitempty"`
-	Resources         []CostCenterResource `json:"resources"`
-}
-
-// CostCenterAssignments is the body for adding or removing resources; empty slices are omitted.
+// CostCenterAssignments is the body for adding or removing resources. It also
+// carries enterprise teams, which CostCenterResourceRequest does not model;
+// shortcut: drop it and use the SDK type once it does.
 type CostCenterAssignments struct {
 	Users           []string `json:"users,omitempty"`
 	Organizations   []string `json:"organizations,omitempty"`
@@ -52,9 +37,9 @@ type costCenterResourcesResult struct {
 }
 
 func costCenterPath(enterprise, id string) string {
-	p := "enterprises/" + url.PathEscape(enterprise) + "/settings/billing/cost-centers"
+	p := "enterprises/" + seg(enterprise) + "/settings/billing/cost-centers"
 	if id != "" {
-		p += "/" + url.PathEscape(id)
+		p += "/" + seg(id)
 	}
 	return p
 }
@@ -70,23 +55,24 @@ func validCostCenterID(id string) error {
 	return nil
 }
 
-func validCostCenter(cc *CostCenter) error {
+func validCostCenter(cc *github.CostCenter) error {
 	if validCostCenterID(cc.ID) != nil || cc.Name == "" {
 		return fmt.Errorf("GitHub returned a cost center without its identity")
 	}
 	return nil
 }
 
-// CostCenters returns all cost centers, optionally filtered by state ("" for none). The documented response is a
-// {"costCenters":[...]} wrapper; a Link rel="next" page is followed if present.
-func (c *Client) CostCenters(ctx context.Context, enterprise, state string) ([]CostCenter, error) {
-	all := make([]CostCenter, 0)
+// CostCenters returns all cost centers, optionally filtered by state ("" for none).
+// It stays a raw request because ListCostCenterOptions has no page parameter and
+// the provider must follow every page.
+func (c *Client) CostCenters(ctx context.Context, enterprise, state string) ([]*github.CostCenter, error) {
+	all := make([]*github.CostCenter, 0)
 	seen := map[string]bool{}
+	path := costCenterPath(enterprise, "")
 	for page, n := 1, 0; page != 0; n++ {
-		if n >= maxCostCenterPages {
+		if n >= maxPages {
 			return nil, fmt.Errorf("too many cost center pages")
 		}
-		path := costCenterPath(enterprise, "")
 		q := url.Values{}
 		if state != "" {
 			q.Set("state", state)
@@ -94,21 +80,22 @@ func (c *Client) CostCenters(ctx context.Context, enterprise, state string) ([]C
 		if page > 1 {
 			q.Set("page", strconv.Itoa(page))
 		}
+		p := path
 		if len(q) > 0 {
-			path += "?" + q.Encode()
+			p += "?" + q.Encode()
 		}
-		var out struct {
-			CostCenters []CostCenter `json:"costCenters"`
-		}
-		h, err := c.request(ctx, http.MethodGet, path, nil, &out)
+		var out github.CostCenters
+		resp, err := c.request(ctx, http.MethodGet, p, nil, &out)
 		if err != nil {
 			return nil, err
 		}
 		if out.CostCenters == nil {
 			return nil, fmt.Errorf("GitHub returned a cost center list without costCenters")
 		}
-		for i := range out.CostCenters {
-			cc := &out.CostCenters[i]
+		for _, cc := range out.CostCenters {
+			if cc == nil {
+				return nil, fmt.Errorf("GitHub returned an empty cost center in the list")
+			}
 			if err := validCostCenter(cc); err != nil {
 				return nil, err
 			}
@@ -121,42 +108,43 @@ func (c *Client) CostCenters(ctx context.Context, enterprise, state string) ([]C
 			seen[cc.ID] = true
 		}
 		all = append(all, out.CostCenters...)
-		if page, err = nextPage(h, page); err != nil {
+		if page, err = nextPage(resp, page); err != nil {
 			return nil, err
 		}
 	}
 	return all, nil
 }
 
-func (c *Client) CreateCostCenter(ctx context.Context, enterprise, name string) (*CostCenter, error) {
-	var cc CostCenter
-	if _, err := c.request(ctx, http.MethodPost, costCenterPath(enterprise, ""), map[string]string{"name": name}, &cc); err != nil {
-		return nil, err
+func (c *Client) CreateCostCenter(ctx context.Context, enterprise, name string) (*github.CostCenter, error) {
+	cc, _, err := c.api.Enterprise.CreateCostCenter(ctx, seg(enterprise), github.CostCenterRequest{Name: name})
+	if err != nil {
+		return nil, callError(http.MethodPost, costCenterPath(enterprise, ""), err)
 	}
-	if validCostCenterID(cc.ID) != nil {
+	if cc == nil || validCostCenterID(cc.ID) != nil {
 		return nil, fmt.Errorf("GitHub returned a cost center without a valid ID; inspect the enterprise before retrying creation")
 	}
 	if cc.Name == "" {
 		// Return the created identity so callers can keep it; they must refresh
 		// manually before retrying instead of adopting a cost center by name.
-		return &cc, fmt.Errorf("GitHub created cost center %q but returned an incomplete response; refresh before retrying", cc.ID)
+		return cc, fmt.Errorf("GitHub created cost center %q but returned an incomplete response; refresh before retrying", cc.ID)
 	}
-	return &cc, nil
+	return cc, nil
 }
 
 // CostCenter reads every resource page and fails if the identity or the
-// pagination flag is inconsistent rather than returning a truncated object.
-func (c *Client) CostCenter(ctx context.Context, enterprise, id string) (*CostCenter, error) {
+// pagination flag is inconsistent rather than returning a truncated object. The
+// typed method takes no page options, so this stays a raw request.
+func (c *Client) CostCenter(ctx context.Context, enterprise, id string) (*github.CostCenter, error) {
 	if err := validCostCenterID(id); err != nil {
 		return nil, err
 	}
-	var result *CostCenter
+	var result *github.CostCenter
 	for page := 1; ; page++ {
-		if page > maxCostCenterPages {
+		if page > maxPages {
 			return nil, fmt.Errorf("too many cost center pages")
 		}
 		var out struct {
-			CostCenter
+			github.CostCenter
 			HasNextPage *bool `json:"has_next_page"`
 		}
 		_, err := c.request(ctx, http.MethodGet, costCenterPath(enterprise, id)+"?page="+strconv.Itoa(page)+"&per_page="+strconv.Itoa(costCenterPageSize), nil, &out)
@@ -169,6 +157,11 @@ func (c *Client) CostCenter(ctx context.Context, enterprise, id string) (*CostCe
 		if out.Resources == nil {
 			return nil, fmt.Errorf("GitHub returned a cost center without its resources")
 		}
+		for _, r := range out.Resources {
+			if r == nil {
+				return nil, fmt.Errorf("GitHub returned an empty resource in the cost center")
+			}
+		}
 		if out.ID != id {
 			return nil, fmt.Errorf("cost center identity changed during lookup; retry the operation")
 		}
@@ -176,7 +169,7 @@ func (c *Client) CostCenter(ctx context.Context, enterprise, id string) (*CostCe
 			cc := out.CostCenter
 			result = &cc
 		} else {
-			if out.Name != result.Name || out.State != result.State || !sameStr(out.AzureSubscription, result.AzureSubscription) {
+			if out.Name != result.Name || !sameStr(out.State, result.State) || !sameStr(out.AzureSubscription, result.AzureSubscription) {
 				return nil, fmt.Errorf("cost center changed between pages; retry the operation")
 			}
 			result.Resources = append(result.Resources, out.Resources...)
@@ -196,21 +189,24 @@ func (c *Client) CostCenter(ctx context.Context, enterprise, id string) (*CostCe
 	}
 }
 
-func (c *Client) UpdateCostCenter(ctx context.Context, enterprise, id, name string) (*CostCenter, error) {
+func (c *Client) UpdateCostCenter(ctx context.Context, enterprise, id, name string) (*github.CostCenter, error) {
 	if err := validCostCenterID(id); err != nil {
 		return nil, err
 	}
-	var cc CostCenter
-	if _, err := c.request(ctx, http.MethodPatch, costCenterPath(enterprise, id), map[string]string{"name": name}, &cc); err != nil {
-		return nil, err
+	cc, _, err := c.api.Enterprise.UpdateCostCenter(ctx, seg(enterprise), seg(id), github.CostCenterRequest{Name: name})
+	if err != nil {
+		return nil, callError(http.MethodPatch, costCenterPath(enterprise, id), err)
 	}
-	if err := validCostCenter(&cc); err != nil {
+	if cc == nil {
+		return nil, fmt.Errorf("GitHub returned an empty response when updating the cost center")
+	}
+	if err := validCostCenter(cc); err != nil {
 		return nil, err
 	}
 	if cc.ID != id {
 		return nil, fmt.Errorf("GitHub returned a different cost center than requested")
 	}
-	return &cc, nil
+	return cc, nil
 }
 
 // DeleteCostCenter archives the cost center and verifies GitHub's archive confirmation.
@@ -218,14 +214,11 @@ func (c *Client) DeleteCostCenter(ctx context.Context, enterprise, id string) er
 	if err := validCostCenterID(id); err != nil {
 		return err
 	}
-	var out struct {
-		ID              string `json:"id"`
-		CostCenterState string `json:"costCenterState"`
+	out, _, err := c.api.Enterprise.DeleteCostCenter(ctx, seg(enterprise), seg(id))
+	if err != nil {
+		return callError(http.MethodDelete, costCenterPath(enterprise, id), err)
 	}
-	if _, err := c.request(ctx, http.MethodDelete, costCenterPath(enterprise, id), nil, &out); err != nil {
-		return err
-	}
-	if out.ID != id || out.CostCenterState != costCenterArchivedState {
+	if out == nil || out.ID != id || out.CostCenterState != costCenterArchivedState {
 		return fmt.Errorf("GitHub did not confirm the cost center was archived")
 	}
 	return nil
@@ -245,6 +238,7 @@ func (c *Client) RemoveCostCenterResources(ctx context.Context, enterprise, id s
 	return err
 }
 
+// changeCostCenterResources stays a raw request to keep enterprise team assignments.
 func (c *Client) changeCostCenterResources(ctx context.Context, method, enterprise, id string, r CostCenterAssignments) (*costCenterResourcesResult, error) {
 	if err := validCostCenterID(id); err != nil {
 		return nil, err
@@ -252,9 +246,14 @@ func (c *Client) changeCostCenterResources(ctx context.Context, method, enterpri
 	if len(r.Users)+len(r.Organizations)+len(r.Repositories)+len(r.EnterpriseTeams) == 0 {
 		return nil, nil
 	}
-	var out costCenterResourcesResult
+	// Decode into a pointer so an empty 200 body is distinguishable from {} and
+	// cannot silently suppress the reassignment diagnostics.
+	var out *costCenterResourcesResult
 	if _, err := c.request(ctx, method, costCenterPath(enterprise, id)+"/resource", r, &out); err != nil {
 		return nil, err
 	}
-	return &out, nil
+	if out == nil {
+		return nil, fmt.Errorf("GitHub returned an empty response when changing cost center resources")
+	}
+	return out, nil
 }

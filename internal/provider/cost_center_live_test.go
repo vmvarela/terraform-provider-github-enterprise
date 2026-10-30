@@ -80,8 +80,8 @@ func checkCostCenterArchived(c *client.Client, enterprise string, created *strin
 		if err != nil {
 			return fmt.Errorf("verify archive of cost center %s: %w", *created, err)
 		}
-		if !strings.EqualFold(cc.State, "deleted") || len(cc.Resources) != 0 {
-			return fmt.Errorf("test cost center %s must be archived and empty (state %q, %d resources); inspect and resolve it manually", *created, cc.State, len(cc.Resources))
+		if !strings.EqualFold(cc.GetState(), "deleted") || len(cc.Resources) != 0 {
+			return fmt.Errorf("test cost center %s must be archived and empty (state %q, %d resources); inspect and resolve it manually", *created, cc.GetState(), len(cc.Resources))
 		}
 		return nil
 	}

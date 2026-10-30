@@ -3,7 +3,9 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/google/go-github/v93/github"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,6 +22,26 @@ func testClient(t *testing.T, h http.HandlerFunc) *Client {
 	}
 	return c
 }
+func TestClientSendsConfiguredAPIVersion(t *testing.T) {
+	var got string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("X-GitHub-Api-Version")
+		fmt.Fprint(w, `[]`)
+	}))
+	defer s.Close()
+	// Outside the range the SDK accepts, to prove the transport header survives.
+	c, err := New(s.URL+"/api/", "test-token", "2027-01-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Teams(context.Background(), "acme"); err != nil {
+		t.Fatal(err)
+	}
+	if got != "2027-01-01" {
+		t.Errorf("api version %q", got)
+	}
+}
+
 func TestFindTeamDoesNotFollowReusedSlug(t *testing.T) {
 	var paths []string
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -86,12 +108,18 @@ func TestPaginationUsesLocalEndpointAndAllPages(t *testing.T) {
 	}
 }
 func TestPaginationRejectsLoop(t *testing.T) {
+	calls := 0
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
 		w.Header().Set("Link", `<https://api.github.com/x?page=1>; rel="next"`)
 		fmt.Fprint(w, `[]`)
 	})
-	if _, err := c.Teams(context.Background(), "acme"); err == nil {
-		t.Fatal("accepted a pagination loop")
+	_, err := c.Teams(context.Background(), "acme")
+	if err == nil || !strings.Contains(err.Error(), "invalid next page") {
+		t.Fatalf("accepted a pagination loop: %v", err)
+	}
+	if calls != 1 {
+		t.Errorf("requested %d pages before rejecting the loop", calls)
 	}
 }
 func TestUpdateCanExplicitlyClearGroupAndDescription(t *testing.T) {
@@ -217,24 +245,103 @@ func TestTeamSettingPresence(t *testing.T) {
 		present      bool
 	}{
 		{"omitted", "", false},
-		{"null", `,"organization_selection_type":null,"notification_setting":null`, false},
-		{"explicit", `,"organization_selection_type":"selected","notification_setting":"notifications_disabled"`, true},
-		{"empty", `,"organization_selection_type":"","notification_setting":""`, true},
+		{"null", `,"organization_selection_type":null`, false},
+		{"explicit", `,"organization_selection_type":"selected"`, true},
+		{"empty", `,"organization_selection_type":""`, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var team Team
+			var team github.EnterpriseTeam
 			if err := json.Unmarshal([]byte(`{"id":42,"slug":"ent:platform"`+tc.fields+`}`), &team); err != nil {
 				t.Fatal(err)
 			}
-			if (team.OrganizationSelectionType != nil) != tc.present || (team.NotificationSetting != nil) != tc.present {
+			if (team.OrganizationSelectionType != nil) != tc.present {
 				t.Fatalf("lost field presence: %+v", team)
 			}
-			if tc.name == "explicit" && (*team.OrganizationSelectionType != "selected" || *team.NotificationSetting != "notifications_disabled") {
+			if tc.name == "explicit" && *team.OrganizationSelectionType != "selected" {
 				t.Fatalf("lost observed settings: %+v", team)
 			}
-			if tc.name == "empty" && (*team.OrganizationSelectionType != "" || *team.NotificationSetting != "") {
+			if tc.name == "empty" && *team.OrganizationSelectionType != "" {
 				t.Fatalf("empty values were rewritten: %+v", team)
 			}
 		})
+	}
+}
+
+func TestPathsEscapeOpaqueIDs(t *testing.T) {
+	var got string
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL.EscapedPath()
+		fmt.Fprint(w, `{"id":7,"slug":"a/b c"}`)
+	})
+	if _, err := c.TeamBySlug(context.Background(), "acme", "a/b c"); err != nil {
+		t.Fatal(err)
+	}
+	if want := "/api/enterprises/acme/teams/a%2Fb%20c"; got != want {
+		t.Errorf("path %q, want %q", got, want)
+	}
+}
+
+func TestListRejectsEmptyResponseBody(t *testing.T) {
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	if _, err := c.Teams(context.Background(), "acme"); err == nil {
+		t.Fatal("accepted an empty list response as an empty team list")
+	}
+}
+
+func TestListRejectsNullElement(t *testing.T) {
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `[null]`)
+	})
+	if _, err := c.Teams(context.Background(), "acme"); err == nil {
+		t.Fatal("accepted a null team")
+	}
+}
+
+func TestMembershipWithoutUserIsRejected(t *testing.T) {
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{}`)
+	})
+	if _, err := c.Membership(context.Background(), "acme", 7, "someone"); err == nil {
+		t.Fatal("accepted a membership without a user")
+	}
+}
+
+func TestAcceptedStatusIsAnError(t *testing.T) {
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprint(w, `{"message":"accepted"}`)
+	})
+	_, err := c.Teams(context.Background(), "acme")
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusAccepted {
+		t.Fatalf("err = %v, want an APIError with status 202", err)
+	}
+}
+
+func TestTwoFactorAuthErrorDoesNotLeakTheResponse(t *testing.T) {
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-GitHub-OTP", "required; sms")
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprint(w, `{"message":"secret-echo"}`)
+	})
+	_, err := c.Teams(context.Background(), "acme")
+	if err == nil || strings.Contains(err.Error(), "secret-echo") {
+		t.Fatalf("err = %v, want a sanitized error", err)
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusUnauthorized {
+		t.Fatalf("err = %v, want an APIError with status 401", err)
+	}
+}
+
+func TestDecodeErrorDoesNotEchoServerValue(t *testing.T) {
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"id":7,"slug":"x","created_at":"secret-echo"}`)
+	})
+	_, err := c.TeamBySlug(context.Background(), "acme", "x")
+	if err == nil || strings.Contains(err.Error(), "secret-echo") {
+		t.Fatalf("err = %v, want a sanitized error", err)
 	}
 }

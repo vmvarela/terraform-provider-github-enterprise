@@ -1,45 +1,29 @@
-// Package client implements the GitHub Enterprise Teams REST API.
+// Package client implements the GitHub Enterprise REST API on top of go-github.
 package client
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/go-github/v93/github"
 )
 
 const DefaultAPIVersion = "2026-03-10"
 
+// maxPages bounds pagination loops against a misbehaving server.
+const maxPages = 1000
+
+// Client wraps go-github. Typed SDK methods are used wherever their request and
+// response types carry the provider's semantics; the few raw requests cover the
+// gaps documented next to them.
 type Client struct {
-	base           *url.URL
-	token, version string
-	http           *http.Client
-}
-
-type Team struct {
-	ID                        int64   `json:"id"`
-	Name                      string  `json:"name"`
-	Slug                      string  `json:"slug"`
-	Description               string  `json:"description"`
-	GroupID                   string  `json:"group_id"`
-	OrganizationSelectionType *string `json:"organization_selection_type"`
-	NotificationSetting       *string `json:"notification_setting"`
-}
-
-type User struct {
-	Login string `json:"login"`
-	ID    int64  `json:"id"`
-}
-
-type Organization struct {
-	Login string `json:"login"`
+	api *github.Client
 }
 
 // APIError deliberately excludes response bodies and request headers. GitHub
@@ -65,6 +49,24 @@ func IsNotFound(err error) bool {
 	return errors.As(err, &e) && e.Status == http.StatusNotFound
 }
 
+// apiVersionTransport applies the configured API version to every request,
+// including the ones go-github builds internally. Clone the request: transports
+// must not mutate what they are given.
+type apiVersionTransport struct {
+	base    http.RoundTripper
+	version string
+}
+
+func (t apiVersionTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	clone := r.Clone(r.Context())
+	clone.Header.Set("X-GitHub-Api-Version", t.version)
+	// Normalize only the SDK default; SCIM methods already set their own media type.
+	if a := clone.Header.Get("Accept"); a == "" || a == "application/vnd.github.v3+json" {
+		clone.Header.Set("Accept", "application/vnd.github+json")
+	}
+	return t.base.RoundTrip(clone)
+}
+
 func New(baseURL, token, version string) (*Client, error) {
 	u, err := url.Parse(baseURL)
 	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
@@ -85,134 +87,179 @@ func New(baseURL, token, version string) (*Client, error) {
 		return nil, fmt.Errorf("api_version must be a date in YYYY-MM-DD format")
 	}
 	u.Path = strings.TrimRight(u.Path, "/") + "/"
-	return &Client{base: u, token: token, version: version, http: &http.Client{
-		Timeout: 60 * time.Second,
-		// Enterprise endpoints do not require redirects. Never replay privileged
-		// credentials against a redirect target supplied by a remote server.
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
-	}}, nil
+	base := u.String()
+	api, err := github.NewClient(
+		github.WithHTTPClient(&http.Client{
+			Timeout: 60 * time.Second,
+			// Enterprise endpoints do not require redirects. Never replay privileged
+			// credentials against a redirect target supplied by a remote server.
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+			Transport:     apiVersionTransport{base: http.DefaultTransport, version: version},
+		}),
+		github.WithAuthToken(token),
+		// WithURLs, not WithEnterpriseURLs: the latter rewrites the path to
+		// /api/v3/ and this provider targets GitHub Enterprise Cloud base URLs.
+		github.WithURLs(&base, &base),
+		github.WithUserAgent("terraform-provider-github-enterprise"),
+		// Keep failing immediately instead of consulting the SDK's local rate
+		// limit cache before the request.
+		github.WithDisableRateLimitCheck(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{api: api}, nil
 }
 
+// seg escapes one opaque path segment. go-github interpolates path arguments
+// without escaping, so callers escape them here; TestPathsEscapeOpaqueIDs fails
+// if upstream starts escaping too, turning this into a double escape.
+func seg(s string) string { return url.PathEscape(s) }
+
 func teamPath(enterprise string, selector string) string {
-	p := "enterprises/" + url.PathEscape(enterprise) + "/teams"
+	p := "enterprises/" + seg(enterprise) + "/teams"
 	if selector != "" {
-		p += "/" + url.PathEscape(selector)
+		p += "/" + seg(selector)
 	}
 	return p
 }
 
-func (c *Client) request(ctx context.Context, method, path string, body, out any) (http.Header, error) {
-	return c.requestAccept(ctx, method, path, "application/vnd.github+json", body, out)
-}
-
-func (c *Client) requestAccept(ctx context.Context, method, path, accept string, body, out any) (http.Header, error) {
-	u := *c.base
-	// PathEscape is applied by callers; retain it when resolving the relative path.
-	rel, err := url.Parse(path)
+func (c *Client) request(ctx context.Context, method, path string, body, out any) (*github.Response, error) {
+	req, err := c.api.NewRequest(ctx, method, path, body)
 	if err != nil {
 		return nil, err
 	}
-	target := u.ResolveReference(rel)
-	var reader io.Reader
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return nil, err
-		}
-		reader = bytes.NewReader(b)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, target.String(), reader)
+	resp, err := c.api.Do(req, out)
 	if err != nil {
-		return nil, err
+		return resp, newAPIError(req.Method, req.URL.EscapedPath(), err)
 	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Accept", accept)
-	req.Header.Set("X-GitHub-Api-Version", c.version)
-	req.Header.Set("User-Agent", "terraform-provider-github-enterprise")
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return resp.Header, &APIError{Status: resp.StatusCode, Method: method, Path: target.EscapedPath(), RequestID: resp.Header.Get("X-GitHub-Request-Id"), RetryAfter: resp.Header.Get("Retry-After")}
-	}
-	if out != nil && resp.StatusCode != http.StatusNoContent {
-		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-			return resp.Header, fmt.Errorf("decode GitHub API response: %w", err)
-		}
-	}
-	return resp.Header, nil
+	return resp, nil
 }
 
-// Only consume the page number from Link. Never follow an arbitrary absolute
-// next URL with the enterprise token. Refuse repeated/backwards pages.
-func nextPage(header http.Header, current int) (int, error) {
-	for _, value := range header.Values("Link") {
-		for _, link := range strings.Split(value, ",") {
-			parts := strings.Split(link, ";")
-			next := false
-			for _, part := range parts[1:] {
-				if strings.TrimSpace(part) == `rel="next"` {
-					next = true
-				}
-			}
-			if !next {
-				continue
-			}
-			u, err := url.Parse(strings.Trim(strings.TrimSpace(parts[0]), "<>"))
-			if err != nil {
-				return 0, fmt.Errorf("invalid pagination link")
-			}
-			n, err := strconv.Atoi(u.Query().Get("page"))
-			if err != nil || n <= current {
-				return 0, fmt.Errorf("invalid next page in GitHub API response")
-			}
-			return n, nil
-		}
+// callError maps a typed SDK error to the same sanitized APIError. The SDK builds
+// the request internally, so method and path are only used for diagnostics.
+func callError(method, path string, err error) error {
+	if err == nil {
+		return nil
 	}
-	return 0, nil
+	return newAPIError(method, path, err)
 }
 
-func list[T any](ctx context.Context, c *Client, path string) ([]T, error) {
+// newAPIError reduces go-github errors carrying a response to the sanitized
+// APIError, so status handling stays uniform across typed and raw requests.
+func newAPIError(method, path string, err error) error {
+	if resp := responseOf(err); resp != nil {
+		return &APIError{
+			Status:     resp.StatusCode,
+			Method:     method,
+			Path:       path,
+			RequestID:  resp.Header.Get("X-GitHub-Request-Id"),
+			RetryAfter: resp.Header.Get("Retry-After"),
+		}
+	}
+	var accepted *github.AcceptedError
+	if errors.As(err, &accepted) {
+		return &APIError{Status: http.StatusAccepted, Method: method, Path: path}
+	}
+	// A decode error can quote a server-supplied value (e.g. a timestamp), so it
+	// must not reach Terraform diagnostics verbatim.
+	var parseErr *time.ParseError
+	if errors.As(err, &parseErr) {
+		return fmt.Errorf("GitHub API %s %s: response contained an unparsable value", method, path)
+	}
+	return err
+}
+
+func responseOf(err error) *http.Response {
+	var er *github.ErrorResponse
+	if errors.As(err, &er) {
+		return er.Response
+	}
+	// TwoFactorAuthError is a distinct type that also embeds the response.
+	var otp *github.TwoFactorAuthError
+	if errors.As(err, &otp) {
+		return otp.Response
+	}
+	var rate *github.RateLimitError
+	if errors.As(err, &rate) {
+		return rate.Response
+	}
+	var abuse *github.AbuseRateLimitError
+	if errors.As(err, &abuse) {
+		return abuse.Response
+	}
+	var redirect *github.RedirectionError
+	if errors.As(err, &redirect) {
+		return redirect.Response
+	}
+	return nil
+}
+
+// paginate calls fetch with the page the server asked for next, so typed SDK
+// methods keep the provider's full-pagination contract.
+func paginate[T any](fetch func(page int) ([]T, int, error)) ([]T, error) {
 	all := make([]T, 0)
-	for page := 1; page != 0; {
-		var items []T
-		h, err := c.request(ctx, http.MethodGet, path+"?per_page=100&page="+strconv.Itoa(page), nil, &items)
+	for page, n := 1, 0; page != 0; n++ {
+		if n >= maxPages {
+			return nil, fmt.Errorf("too many pages")
+		}
+		items, next, err := fetch(page)
 		if err != nil {
 			return nil, err
 		}
 		all = append(all, items...)
-		page, err = nextPage(h, page)
-		if err != nil {
-			return nil, err
-		}
+		page = next
 	}
 	return all, nil
 }
 
-func (c *Client) Teams(ctx context.Context, enterprise string) ([]Team, error) {
-	return list[Team](ctx, c, teamPath(enterprise, ""))
+// Only the page number among the server's Link values is used, and only to
+// advance. Refuse repeated or backwards pages so a misbehaving server cannot
+// loop the provider.
+func nextPage(resp *github.Response, current int) (int, error) {
+	if resp == nil || resp.NextPage == 0 {
+		return 0, nil
+	}
+	if resp.NextPage <= current {
+		return 0, fmt.Errorf("invalid next page in GitHub API response")
+	}
+	return resp.NextPage, nil
 }
 
-func (c *Client) TeamBySlug(ctx context.Context, enterprise, slug string) (*Team, error) {
-	var team Team
-	_, err := c.request(ctx, http.MethodGet, teamPath(enterprise, slug), nil, &team)
+func (c *Client) Teams(ctx context.Context, enterprise string) ([]*github.EnterpriseTeam, error) {
+	return paginate(func(page int) ([]*github.EnterpriseTeam, int, error) {
+		teams, resp, err := c.api.Enterprise.ListTeams(ctx, seg(enterprise), &github.ListOptions{Page: page, PerPage: 100})
+		if err != nil {
+			return nil, 0, callError(http.MethodGet, teamPath(enterprise, ""), err)
+		}
+		// The SDK accepts an empty body as success; a list must be a JSON array.
+		if teams == nil {
+			return nil, 0, fmt.Errorf("GitHub returned an empty team list")
+		}
+		for _, t := range teams {
+			if t == nil {
+				return nil, 0, fmt.Errorf("GitHub returned an empty team in the team list")
+			}
+		}
+		next, err := nextPage(resp, page)
+		return teams, next, err
+	})
+}
+
+func (c *Client) TeamBySlug(ctx context.Context, enterprise, slug string) (*github.EnterpriseTeam, error) {
+	team, _, err := c.api.Enterprise.GetTeam(ctx, seg(enterprise), seg(slug))
 	if err != nil {
-		return nil, err
+		return nil, callError(http.MethodGet, teamPath(enterprise, slug), err)
 	}
-	if team.ID <= 0 || team.Slug == "" {
+	if team == nil || team.ID <= 0 || team.Slug == "" {
 		return nil, fmt.Errorf("GitHub returned a team without its identity")
 	}
-	return &team, nil
+	return team, nil
 }
 
 // FindTeam verifies the numeric identity even when the old slug has been
 // reused. Listing is a fallback for imports and out-of-band renames only.
-func (c *Client) FindTeam(ctx context.Context, enterprise string, id int64, slug string) (*Team, error) {
+func (c *Client) FindTeam(ctx context.Context, enterprise string, id int64, slug string) (*github.EnterpriseTeam, error) {
 	if slug != "" {
 		t, err := c.TeamBySlug(ctx, enterprise, slug)
 		if err == nil && t.ID == id {
@@ -249,60 +296,99 @@ func (c *Client) FindTeam(ctx context.Context, enterprise string, id int64, slug
 	return nil, &APIError{Status: http.StatusNotFound, Method: http.MethodGet, Path: teamPath(enterprise, strconv.FormatInt(id, 10))}
 }
 
-func (c *Client) CreateTeam(ctx context.Context, enterprise string, body map[string]any) (*Team, error) {
-	var team Team
-	_, err := c.request(ctx, http.MethodPost, teamPath(enterprise, ""), body, &team)
+func (c *Client) CreateTeam(ctx context.Context, enterprise string, body github.EnterpriseTeamCreateOrUpdateRequest) (*github.EnterpriseTeam, error) {
+	team, _, err := c.api.Enterprise.CreateTeam(ctx, seg(enterprise), body)
 	if err != nil {
-		return nil, err
+		return nil, callError(http.MethodPost, teamPath(enterprise, ""), err)
 	}
-	if team.ID <= 0 || team.Slug == "" {
+	if team == nil || team.ID <= 0 || team.Slug == "" {
 		return nil, fmt.Errorf("GitHub returned a team without its identity; inspect the enterprise before retrying creation")
 	}
-	return &team, nil
+	return team, nil
 }
 
-func (c *Client) UpdateTeam(ctx context.Context, enterprise, slug string, body map[string]any) (*Team, error) {
-	var team Team
-	_, err := c.request(ctx, http.MethodPatch, teamPath(enterprise, slug), body, &team)
-	if err != nil {
+// UpdateTeam sends a raw body because unlinking an IdP group needs an explicit
+// JSON null, which EnterpriseTeamCreateOrUpdateRequest cannot express.
+// shortcut: switch to the typed request when the SDK models explicit nulls.
+func (c *Client) UpdateTeam(ctx context.Context, enterprise, slug string, body map[string]any) (*github.EnterpriseTeam, error) {
+	var team *github.EnterpriseTeam
+	if _, err := c.request(ctx, http.MethodPatch, teamPath(enterprise, slug), body, &team); err != nil {
 		return nil, err
 	}
-	return &team, nil
+	if team == nil {
+		return nil, fmt.Errorf("GitHub returned an empty response when updating the team")
+	}
+	return team, nil
 }
 
 func (c *Client) DeleteTeam(ctx context.Context, enterprise, slug string) error {
-	_, err := c.request(ctx, http.MethodDelete, teamPath(enterprise, slug), nil, nil)
-	return err
+	_, err := c.api.Enterprise.DeleteTeam(ctx, seg(enterprise), seg(slug))
+	return callError(http.MethodDelete, teamPath(enterprise, slug), err)
 }
 
-func (c *Client) Membership(ctx context.Context, enterprise string, teamID int64, username string) (*User, error) {
-	var user User
-	_, err := c.request(ctx, http.MethodGet, teamPath(enterprise, strconv.FormatInt(teamID, 10))+"/memberships/"+url.PathEscape(username), nil, &user)
-	return &user, err
+func (c *Client) Membership(ctx context.Context, enterprise string, teamID int64, username string) (*github.User, error) {
+	user, _, err := c.api.Enterprise.GetTeamMembership(ctx, seg(enterprise), strconv.FormatInt(teamID, 10), seg(username))
+	if err != nil {
+		return nil, callError(http.MethodGet, memberPath(enterprise, teamID, username), err)
+	}
+	if user == nil || user.Login == nil || *user.Login == "" {
+		return nil, fmt.Errorf("GitHub returned a team membership without its user")
+	}
+	return user, nil
 }
 
-func (c *Client) AddMember(ctx context.Context, enterprise string, teamID int64, username string) (*User, error) {
-	var user User
-	_, err := c.request(ctx, http.MethodPut, teamPath(enterprise, strconv.FormatInt(teamID, 10))+"/memberships/"+url.PathEscape(username), nil, &user)
-	return &user, err
+func (c *Client) AddMember(ctx context.Context, enterprise string, teamID int64, username string) (*github.User, error) {
+	user, _, err := c.api.Enterprise.AddTeamMember(ctx, seg(enterprise), strconv.FormatInt(teamID, 10), seg(username))
+	if err != nil {
+		return nil, callError(http.MethodPut, memberPath(enterprise, teamID, username), err)
+	}
+	if user == nil {
+		user = &github.User{}
+	}
+	return user, nil
 }
 
 func (c *Client) RemoveMember(ctx context.Context, enterprise string, teamID int64, username string) error {
-	_, err := c.request(ctx, http.MethodDelete, teamPath(enterprise, strconv.FormatInt(teamID, 10))+"/memberships/"+url.PathEscape(username), nil, nil)
-	return err
+	_, err := c.api.Enterprise.RemoveTeamMember(ctx, seg(enterprise), strconv.FormatInt(teamID, 10), seg(username))
+	return callError(http.MethodDelete, memberPath(enterprise, teamID, username), err)
 }
 
-func (c *Client) Organizations(ctx context.Context, enterprise string, teamID int64) ([]Organization, error) {
-	return list[Organization](ctx, c, teamPath(enterprise, strconv.FormatInt(teamID, 10))+"/organizations")
+func (c *Client) Organizations(ctx context.Context, enterprise string, teamID int64) ([]*github.Organization, error) {
+	path := teamPath(enterprise, "") + "/" + strconv.FormatInt(teamID, 10) + "/organizations"
+	return paginate(func(page int) ([]*github.Organization, int, error) {
+		orgs, resp, err := c.api.Enterprise.ListAssignments(ctx, seg(enterprise), strconv.FormatInt(teamID, 10), &github.ListOptions{Page: page, PerPage: 100})
+		if err != nil {
+			return nil, 0, callError(http.MethodGet, path, err)
+		}
+		if orgs == nil {
+			return nil, 0, fmt.Errorf("GitHub returned an empty organization list")
+		}
+		for _, o := range orgs {
+			if o == nil {
+				return nil, 0, fmt.Errorf("GitHub returned an empty organization in the assignment list")
+			}
+		}
+		next, err := nextPage(resp, page)
+		return orgs, next, err
+	})
 }
 
 func (c *Client) ChangeOrganizations(ctx context.Context, enterprise string, teamID int64, operation string, slugs []string) error {
 	if len(slugs) == 0 {
 		return nil
 	}
-	if operation != "add" && operation != "remove" {
+	var err error
+	switch operation {
+	case "add":
+		_, _, err = c.api.Enterprise.AddMultipleAssignments(ctx, seg(enterprise), strconv.FormatInt(teamID, 10), slugs)
+	case "remove":
+		_, _, err = c.api.Enterprise.RemoveMultipleAssignments(ctx, seg(enterprise), strconv.FormatInt(teamID, 10), slugs)
+	default:
 		return fmt.Errorf("invalid assignment operation")
 	}
-	_, err := c.request(ctx, http.MethodPost, teamPath(enterprise, strconv.FormatInt(teamID, 10))+"/organizations/"+operation, map[string]any{"organization_slugs": slugs}, nil)
-	return err
+	return callError(http.MethodPost, teamPath(enterprise, "")+"/"+strconv.FormatInt(teamID, 10)+"/organizations/"+operation, err)
+}
+
+func memberPath(enterprise string, teamID int64, username string) string {
+	return teamPath(enterprise, "") + "/" + strconv.FormatInt(teamID, 10) + "/memberships/" + seg(username)
 }

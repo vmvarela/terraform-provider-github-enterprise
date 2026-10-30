@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/go-github/v93/github"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -64,7 +65,7 @@ type enterpriseAPI struct {
 // enterpriseState is the remote data of one enterprise, so each slug is
 // routed to its own team instead of one shared fixture store.
 type enterpriseState struct {
-	team    *client.Team
+	team    *github.EnterpriseTeam
 	members map[string]bool
 	orgs    map[string]bool
 }
@@ -110,7 +111,7 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 	parts := segments[2:]
 	if len(parts) == 0 {
 		if r.Method == "GET" {
-			teams := []client.Team{}
+			teams := []github.EnterpriseTeam{}
 			if st.team != nil {
 				teams = append(teams, *st.team)
 			}
@@ -119,7 +120,7 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		if r.Method == "POST" {
 			a.creates++
-			st.team = &client.Team{ID: 42}
+			st.team = &github.EnterpriseTeam{ID: 42}
 			a.updateTeam(st, r)
 			w.WriteHeader(201)
 			_ = json.NewEncoder(w).Encode(st.team)
@@ -176,7 +177,7 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "method", 405)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(client.User{Login: user, ID: 7})
+		_ = json.NewEncoder(w).Encode(github.User{Login: github.String(user), ID: github.Int64(7)})
 		return
 	}
 	if parts[1] == "organizations" {
@@ -207,14 +208,14 @@ func (a *enterpriseAPI) serve(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		orgs := []client.Organization{}
+		orgs := []github.Organization{}
 		names := []string{}
 		for s := range st.orgs {
 			names = append(names, s)
 		}
 		sort.Strings(names)
 		for _, s := range names {
-			orgs = append(orgs, client.Organization{Login: s})
+			orgs = append(orgs, github.Organization{Login: github.String(s)})
 		}
 		_ = json.NewEncoder(w).Encode(orgs)
 		return
@@ -230,13 +231,10 @@ func (a *enterpriseAPI) updateTeam(st *enterpriseState, r *http.Request) {
 		st.team.Slug = "ent:" + strings.ReplaceAll(strings.ToLower(v), " ", "-")
 	}
 	if v, ok := body["description"].(string); ok {
-		st.team.Description = v
+		st.team.Description = github.String(v)
 	}
 	if v, ok := body["organization_selection_type"].(string); ok {
 		st.team.OrganizationSelectionType = new(v)
-	}
-	if v, ok := body["notification_setting"].(string); ok {
-		st.team.NotificationSetting = new(v)
 	}
 	if _, ok := body["group_id"]; ok {
 		// Simulates GitHub: sending group_id explicitly, including a null
@@ -567,7 +565,7 @@ group_id=%q
 func TestTerraformRefusesToOverwriteOrganizations(t *testing.T) {
 	requireTerraform(t)
 	api, base := newAPI(t)
-	api.store("acme").team = &client.Team{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: new("selected"), NotificationSetting: new("notifications_enabled")}
+	api.store("acme").team = &github.EnterpriseTeam{ID: 42, Name: "Platform", Slug: "ent:platform", OrganizationSelectionType: new("selected")}
 	api.store("acme").orgs["existing-org"] = true
 	cfg := fmt.Sprintf(`provider "github-enterprise" {
  token="mock-token"
@@ -881,7 +879,7 @@ func checkOrgSlugsRemote(c *client.Client, enterprise string, created *liveTeam,
 		}
 		got := map[string]bool{}
 		for _, o := range orgs {
-			got[strings.ToLower(o.Login)] = true
+			got[strings.ToLower(o.GetLogin())] = true
 		}
 		if len(got) != len(want) {
 			return fmt.Errorf("remote assignments for team %d: expected %v, got %v", created.id, want, got)

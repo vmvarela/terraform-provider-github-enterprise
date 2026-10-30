@@ -39,7 +39,6 @@ func teamTestState(t *testing.T, r *teamResource, imported bool) tfsdk.State {
 		model.Description = types.StringValue("")
 		model.GroupID = types.StringValue("")
 		model.Selection = types.StringValue("selected")
-		model.Notifications = types.StringValue("notifications_disabled")
 	}
 	state := tfsdk.State{Schema: response.Schema}
 	if ds := state.Set(ctx, &model); ds.HasError() {
@@ -96,17 +95,12 @@ func TestTeamLookupRaceKeepsStateAndDoesNotWrite(t *testing.T) {
 }
 
 func TestTeamReadRejectsMissingSettingsWithoutChangingState(t *testing.T) {
-	for _, missing := range []string{"organization_selection_type", "notification_setting", "both"} {
+	for _, missing := range []string{"organization_selection_type"} {
 		for _, imported := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/imported=%t", missing, imported), func(t *testing.T) {
 				c := lookupClient(t, func(w http.ResponseWriter, r *http.Request) {
-					team := map[string]any{"id": 42, "slug": "ent:old", "name": "Platform", "organization_selection_type": "selected", "notification_setting": "notifications_disabled"}
-					if missing == "both" {
-						delete(team, "organization_selection_type")
-						delete(team, "notification_setting")
-					} else {
-						delete(team, missing)
-					}
+					team := map[string]any{"id": 42, "slug": "ent:old", "name": "Platform", "organization_selection_type": "selected"}
+					delete(team, missing)
 					if r.URL.Path == "/enterprises/acme/teams" {
 						_ = json.NewEncoder(w).Encode([]any{team})
 					} else {
@@ -168,7 +162,7 @@ func TestTeamDataSourcesPreserveMissingSettingsAsNull(t *testing.T) {
 					t.Fatal(model.Teams)
 				}
 				attributes := model.Teams.Elements()[0].(types.Object).Attributes()
-				for _, name := range []string{"organization_selection_type", "notification_setting"} {
+				for _, name := range []string{"organization_selection_type"} {
 					if !attributes[name].IsNull() {
 						t.Fatalf("%s was guessed: %v", name, attributes[name])
 					}
@@ -178,8 +172,8 @@ func TestTeamDataSourcesPreserveMissingSettingsAsNull(t *testing.T) {
 				if d := response.State.Get(ctx, &model); d.HasError() {
 					t.Fatal(d)
 				}
-				if !model.Selection.IsNull() || !model.Notifications.IsNull() {
-					t.Fatalf("settings were guessed: %v, %v", model.Selection, model.Notifications)
+				if !model.Selection.IsNull() {
+					t.Fatalf("settings were guessed: %v", model.Selection)
 				}
 			}
 		})
@@ -219,7 +213,7 @@ func TestTeamReadUsesObservedSettings(t *testing.T) {
 	if ds := response.State.Get(context.Background(), &observed); ds.HasError() {
 		t.Fatal(ds)
 	}
-	if observed.Selection.ValueString() != "all" || observed.Notifications.ValueString() != "notifications_enabled" {
-		t.Fatalf("API values did not replace prior state: %v, %v", observed.Selection, observed.Notifications)
+	if observed.Selection.ValueString() != "all" {
+		t.Fatalf("API values did not replace prior state: %v", observed.Selection)
 	}
 }

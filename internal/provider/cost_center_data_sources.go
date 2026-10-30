@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 
+	"github.com/google/go-github/v93/github"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -10,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/vmvarela/terraform-provider-github-enterprise/internal/client"
 )
 
 var costCenterResourceTypes = map[string]attr.Type{"type": types.StringType, "name": types.StringType}
@@ -29,7 +29,7 @@ func costCenterDataAttributes() map[string]schema.Attribute {
 		}}},
 	}
 }
-func costCenterObject(cc client.CostCenter) (types.Object, diag.Diagnostics) {
+func costCenterObject(cc *github.CostCenter) (types.Object, diag.Diagnostics) {
 	res := make([]attr.Value, 0, len(cc.Resources))
 	var all diag.Diagnostics
 	for _, r := range cc.Resources {
@@ -39,7 +39,7 @@ func costCenterObject(cc client.CostCenter) (types.Object, diag.Diagnostics) {
 	}
 	list, ds := types.ListValue(types.ObjectType{AttrTypes: costCenterResourceTypes}, res)
 	all.Append(ds...)
-	obj, ds := types.ObjectValue(costCenterTypes, map[string]attr.Value{"cost_center_id": types.StringValue(cc.ID), "name": types.StringValue(cc.Name), "state": nullIfEmpty(cc.State), "azure_subscription": types.StringPointerValue(cc.AzureSubscription), "resources": list})
+	obj, ds := types.ObjectValue(costCenterTypes, map[string]attr.Value{"cost_center_id": types.StringValue(cc.ID), "name": types.StringValue(cc.Name), "state": nullIfEmpty(strOrEmpty(cc.State)), "azure_subscription": types.StringPointerValue(cc.AzureSubscription), "resources": list})
 	all.Append(ds...)
 	return obj, all
 }
@@ -82,7 +82,7 @@ func (d *costCenterDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		resp.Diagnostics.AddError("Read cost center", err.Error())
 		return
 	}
-	obj, ds := costCenterObject(*cc)
+	obj, ds := costCenterObject(cc)
 	resp.Diagnostics.Append(ds...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -142,7 +142,7 @@ func (d *costCentersDataSource) Read(ctx context.Context, req datasource.ReadReq
 			resp.Diagnostics.AddError("Read cost center "+summary.ID, err.Error())
 			return
 		}
-		obj, ds := costCenterObject(*cc)
+		obj, ds := costCenterObject(cc)
 		resp.Diagnostics.Append(ds...)
 		values = append(values, obj)
 	}

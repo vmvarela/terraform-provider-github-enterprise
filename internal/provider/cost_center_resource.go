@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/google/go-github/v93/github"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -58,7 +59,20 @@ func parseCostCenterImportID(id string) (enterprise, costCenter string, err erro
 	}
 	return parts[0], parts[1], nil
 }
-func costCenterArchived(cc *client.CostCenter) bool { return strings.EqualFold(cc.State, "deleted") }
+func costCenterArchived(cc *github.CostCenter) bool {
+	return strings.EqualFold(strOrEmpty(cc.State), "deleted")
+}
+
+// strOrEmpty reads an optional SDK string as the empty string when absent.
+func strOrEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// nullIfEmpty keeps plain SDK strings nullable in Terraform. For SCIM an empty
+// value may also mean the IdP omitted the attribute.
 func nullIfEmpty(s string) types.String {
 	if s == "" {
 		return types.StringNull()
@@ -66,11 +80,11 @@ func nullIfEmpty(s string) types.String {
 	return types.StringValue(s)
 }
 
-func (m *costCenterModel) refresh(cc *client.CostCenter) {
+func (m *costCenterModel) refresh(cc *github.CostCenter) {
 	m.ID = types.StringValue(m.Enterprise.ValueString() + "/" + cc.ID)
 	m.CostCenterID = types.StringValue(cc.ID)
 	m.Name = types.StringValue(cc.Name)
-	m.State = nullIfEmpty(cc.State)
+	m.State = nullIfEmpty(strOrEmpty(cc.State))
 	m.Azure = types.StringPointerValue(cc.AzureSubscription)
 }
 
@@ -104,7 +118,7 @@ func (r *costCenterResource) Create(ctx context.Context, req resource.CreateRequ
 		if cc != nil && validCostCenterID(cc.ID) {
 			data.ID = types.StringValue(data.Enterprise.ValueString() + "/" + cc.ID)
 			data.CostCenterID = types.StringValue(cc.ID)
-			data.State, data.Azure = nullIfEmpty(cc.State), types.StringPointerValue(cc.AzureSubscription)
+			data.State, data.Azure = nullIfEmpty(strOrEmpty(cc.State)), types.StringPointerValue(cc.AzureSubscription)
 			resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 		}
 		return
