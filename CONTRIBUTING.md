@@ -88,7 +88,7 @@ Suites and required fixtures:
   Users enterprise. It reads each object and lists using an exact ID filter;
   it does not provision identities, change membership, link teams or run teardown.
   SCIM credentials differ from team credentials: see [Authentication](README.md#authentication).
-  This suite has not been run live; fixture tests do not establish live permissions.
+  This suite passed read-only live on 2026-10-30; see the live evidence below.
 - `TestAccTeam` (core): creates a uniquely named `tf-acc-*` team, reads it through
   both team data sources, reconciles an out-of-band rename back to the configured
   name, renames it, clears its description, imports it and verifies the numeric ID
@@ -145,10 +145,12 @@ sweeper: if the test process is killed during a network-ambiguous step, the team
 remain — inspect the enterprise and resolve it manually rather than guessing.
 
 All three team suites passed against `api.github.com` on 2026-10-19 using a classic PAT
-and API version `2026-03-10`. Live coexistence with `integrations/github` 6.13.0
-was verified on 2026-10-23 through `examples/complete`. GitHub App tokens, IdP group
-lifecycle, and data-residency hosts remain unverified; record a new result here when
-one of them is exercised.
+and API version `2026-03-10`. `TestAccSCIM` passed read-only against `api.github.com`
+on 2026-10-30 using a classic PAT, exercising single-object lookups and `id eq` filtered
+lists only. Live coexistence with `integrations/github` 6.13.0 was verified on 2026-10-23
+through `examples/complete`. GitHub App tokens, fine-grained PATs, IdP group lifecycle,
+multi-page SCIM pagination, concurrent IdP changes and data-residency hosts remain
+unverified; record a new result here when one of them is exercised.
 
 ## Overlap with the official provider
 

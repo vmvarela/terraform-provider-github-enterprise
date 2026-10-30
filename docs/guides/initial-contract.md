@@ -1,14 +1,14 @@
 ---
 page_title: "Compatibility and lifecycle"
 description: |-
-  Ownership, drift behaviour, import requirements and compatibility commitments, including unreleased v0.3 SCIM lookups.
+  Ownership, drift behaviour, import requirements and compatibility commitments, including v0.3 SCIM lookups.
 ---
 
 # Compatibility and lifecycle
 
 This page defines what each resource owns, how the provider behaves when GitHub
 returns incomplete data, and which compatibility commitments apply to the v0.2
-release line and unreleased v0.3 additions. Release mechanics are covered by the
+release line and v0.3 additions. Release mechanics are covered by the
 [release verification guide](https://github.com/vmvarela/terraform-provider-github-enterprise/blob/master/docs/guides/releases.md).
 
 The provider complements `integrations/github` with enterprise teams and cost centers
@@ -92,12 +92,12 @@ permission tables do not prove that the enterprise can grant Enterprise billing
 permission. Verify availability and the required operations before using an App.
 See the [API authentication notice](https://docs.github.com/en/enterprise-cloud@latest/rest/billing/cost-centers#authentication).
 
-## Read-only SCIM lookups (unreleased v0.3)
+## Read-only SCIM lookups (v0.3)
 
 The `scim_group`, `scim_groups`, `scim_user` and `scim_users` data sources read
 existing identities in an Enterprise Managed Users enterprise. They do not
 provision users or groups or manage membership; the IdP remains the only SCIM
-writer. They are not available in published 0.2.x builds.
+writer. They are available from v0.3.0 and not in 0.2.x builds.
 
 SCIM IDs are opaque, case-sensitive strings, distinct from IdP `external_id`
 values and numeric GitHub IDs. Use a group's `scim_group_id` for a team's
@@ -105,7 +105,7 @@ values and numeric GitHub IDs. Use a group's `scim_group_id` for a team's
 null; an explicit inactive user remains `active = false`. User lists include
 soft-deprovisioned users but not permanently deleted identities.
 
-With a local development build, look up an existing IdP group by its GitHub-issued
+Look up an existing IdP group by its GitHub-issued
 SCIM ID and use that raw identity when linking a team:
 
 ```hcl
@@ -134,18 +134,20 @@ response produces an error. Offset pagination is not a snapshot of concurrent
 IdP changes. Protect Terraform state containing identity information.
 
 Use a setup-user classic PAT with `scim:enterprise`, or another enterprise owner's
-classic PAT with `admin:enterprise` for reads. GitHub also documents App user and
-installation tokens with **Enterprise SCIM: read**; that flow is not live-validated
-here. Fine-grained PAT support is not asserted. See [SCIM authentication](https://docs.github.com/en/enterprise-cloud@latest/rest/enterprise-admin/scim#authentication).
+classic PAT with `admin:enterprise` for reads. Read-only lookups were validated live
+on `api.github.com` with a classic PAT on 2026-10-30. GitHub also documents App user
+and installation tokens with **Enterprise SCIM: read**; that flow is not
+live-validated here. Fine-grained PAT support is not asserted. See
+[SCIM authentication](https://docs.github.com/en/enterprise-cloud@latest/rest/enterprise-admin/scim#authentication).
 SCIM uses `https://api.github.com/` or the configured
-`https://api.SUBDOMAIN.ghe.com/` root. Live SCIM behavior, permissions and
-data-residency hosts remain unverified by this provider.
+`https://api.SUBDOMAIN.ghe.com/` root. Data-residency hosts, multi-page pagination
+and concurrent IdP changes remain unvalidated by this provider.
 
 ## Compatibility
 
 The provider targets GitHub Enterprise Cloud. No GitHub Enterprise Server support
-is claimed. Cost centers were added in v0.2.0; read-only SCIM lookups target the
-unreleased v0.3. Billing usage data sources remain outside its scope. The default
+is claimed. Cost centers were added in v0.2.0; read-only SCIM lookups were added in
+v0.3.0. Billing usage data sources remain outside its scope. The default
 API version is `2026-03-10`.
 
 Packages are built for Linux, macOS and Windows on amd64 and arm64. Releases are
