@@ -351,6 +351,7 @@ func TestErrorHintNamesTheNextStep(t *testing.T) {
 		http.StatusUnauthorized:        "valid and has not expired",
 		http.StatusForbidden:           "enterprise scope",
 		http.StatusNotFound:            "cannot see it",
+		http.StatusUnprocessableEntity: "scope, pricing type, SKU and alerting",
 		http.StatusTooManyRequests:     "wait before retrying",
 		http.StatusInternalServerError: "retry later",
 	} {
