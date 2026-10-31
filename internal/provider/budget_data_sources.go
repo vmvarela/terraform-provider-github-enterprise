@@ -150,7 +150,7 @@ func (d *budgetsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "Deterministic query identity: enterprise_slug:budgets, plus the escaped filters when set."},
 		"enterprise_slug": enterpriseDataAttribute(),
 		"scope":           schema.StringAttribute{Optional: true, MarkdownDescription: "Only return budgets with this scope.", Validators: []validator.String{oneOf(budgetScopes...)}},
-		"user":            schema.StringAttribute{Optional: true, MarkdownDescription: "Only return budgets for this login. Use it together with scope `user`.", Validators: []validator.String{usernameRule()}},
+		"user":            schema.StringAttribute{Optional: true, MarkdownDescription: "Filter the consumed-amount details by this login, which is what GitHub documents the parameter for. Use it together with scope `user`.", Validators: []validator.String{usernameRule()}},
 		"budgets":         schema.ListNestedAttribute{Computed: true, MarkdownDescription: "Budgets in API order.", NestedObject: schema.NestedAttributeObject{Attributes: nested}},
 	}}
 }

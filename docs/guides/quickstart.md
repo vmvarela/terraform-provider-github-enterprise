@@ -8,7 +8,8 @@ description: |-
 
 This provider manages GitHub Enterprise Cloud objects that `integrations/github`
 does not: enterprise teams, their members and organization assignments, read-only
-SCIM lookups, and cost centers. Both providers can live in the same configuration.
+SCIM lookups, cost centers and billing budgets. Both providers can live in the same
+configuration.
 
 ## 1. Authenticate
 
@@ -20,9 +21,10 @@ export GITHUB_ENTERPRISE_TOKEN=ghp_...
 export GITHUB_ENTERPRISE_SLUG=my-enterprise
 ```
 
-Teams and memberships need `admin:enterprise` and `admin:org`. Cost centers need
-`manage_billing:enterprise` and an enterprise owner or billing manager. Fine-grained
-tokens cannot call the cost-center endpoints.
+Teams and memberships need `admin:enterprise` and `admin:org`. Cost centers and
+budgets need `manage_billing:enterprise` and an enterprise owner or billing manager;
+organization and repository budgets also accept an organization administrator.
+Fine-grained tokens cannot call these endpoints.
 
 ## 2. Configure the provider
 

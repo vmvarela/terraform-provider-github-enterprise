@@ -75,6 +75,37 @@ func TestBudgetValidation(t *testing.T) {
 	if d := validateBudget(withExpiry); !d.HasError() {
 		t.Error("expires_at outside user scope accepted")
 	}
+
+	// GitHub rejects alerting on user-scoped budgets with an opaque 422, so the
+	// provider must refuse it before the call.
+	alerts := budgetModelFor("user", "", "octocat", "ai_credits", "BundlePricing", true)
+	alerts.AlertsEnabled = types.BoolValue(true)
+	if d := validateBudget(alerts); !d.HasError() {
+		t.Error("alerts_enabled on user scope accepted")
+	}
+	recipients := budgetModelFor("user", "", "octocat", "ai_credits", "BundlePricing", true)
+	list, ds := types.ListValueFrom(context.Background(), types.StringType, []string{"octocat"})
+	if ds.HasError() {
+		t.Fatal(ds)
+	}
+	recipients.AlertRecipients = list
+	if d := validateBudget(recipients); !d.HasError() {
+		t.Error("alert_recipients on user scope accepted")
+	}
+}
+
+// Plan-time validation must stay silent while a value is still unknown, or a
+// budget that references another resource would fail before it can be created.
+func TestBudgetPlanValidationSkipsUnknowns(t *testing.T) {
+	known := budgetModelFor("organization", "acme", "", "actions", "ProductPricing", true)
+	if !budgetConfigKnown(known) {
+		t.Error("fully known configuration reported as unknown")
+	}
+	unknown := budgetModelFor("organization", "acme", "", "actions", "ProductPricing", true)
+	unknown.EntityName = types.StringUnknown()
+	if budgetConfigKnown(unknown) {
+		t.Error("unknown entity name reported as known")
+	}
 }
 
 // GitHub answers with the entity's display name; a configured login must survive

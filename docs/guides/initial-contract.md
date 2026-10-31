@@ -11,8 +11,8 @@ returns incomplete data, and which compatibility commitments apply to the v0.2
 release line and v0.3 additions. Release mechanics are covered by the
 [release verification guide](https://github.com/vmvarela/terraform-provider-github-enterprise/blob/master/docs/guides/releases.md).
 
-The provider complements `integrations/github` with enterprise teams and cost centers
-missing from the official provider. Its source is `vmvarela/github-enterprise`, its
+The provider complements `integrations/github` with enterprise teams, cost centers and
+billing budgets missing from the official provider. Its source is `vmvarela/github-enterprise`, its
 local name is `github-enterprise`, and resource and data source types start with
 `github_enterprise_`. The prefix is shared with some official resources: every
 resource and data source must explicitly select `provider = github-enterprise`, or
@@ -27,10 +27,12 @@ Terraform infers the official provider from the type name.
 | `github_enterprise_team_organizations` | The complete organization assignment set | `enterprise_slug:team_id` |
 | `github_enterprise_cost_center` (from v0.2.0) | One cost center; destroy archives it | `enterprise_slug:cost_center_id` |
 | `github_enterprise_cost_center_resources` (from v0.2.0) | The complete cost-center assignment set across all supported categories | `enterprise_slug:cost_center_id` |
+| `github_enterprise_budget` (from v0.6.0) | One spending budget; destroy removes the cap, and spend already incurred stays billed | `enterprise_slug:budget_id` |
 
 Read-only data sources are `github_enterprise_team`, `github_enterprise_teams`,
 `github_enterprise_team_membership`, `github_enterprise_team_organizations`,
-`github_enterprise_cost_center`, and `github_enterprise_cost_centers`.
+`github_enterprise_cost_center`, `github_enterprise_cost_centers`,
+`github_enterprise_budget`, and `github_enterprise_budgets`.
 A missing single team or membership is an error; list lookups may return empty
 collections. An existing membership reports `is_member = true`.
 
@@ -85,10 +87,11 @@ reassignments and partial failures require inspection, not blind retries.
 
 Supply exact billing API resource identifiers. The public API does not fully
 specify repository and enterprise-team formats, and their live behavior has not
-been verified. Budgets, analytics and AI credit pool settings are not managed.
+been verified. Usage analytics and AI credit pool configuration are not managed.
 
-Cost centers require a classic PAT or OAuth access token with
-`manage_billing:enterprise`. Fine-grained PATs cannot call these endpoints.
+Cost centers and budgets require a classic PAT or OAuth access token with
+`manage_billing:enterprise`. Budgets also accept an organization administrator token
+for organization and repository scopes. Fine-grained PATs cannot call these endpoints.
 GitHub App billing authentication is not generally available: generated
 permission tables do not prove that the enterprise can grant Enterprise billing
 permission. Verify availability and the required operations before using an App.

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -131,6 +132,12 @@ func validateBudget(m *budgetModel) diag.Diagnostics {
 	if aiScopes && !m.PreventFurtherUsage.ValueBool() {
 		diags.AddAttributeError(path.Root("prevent_further_usage"), "Unsupported prevent_further_usage", fmt.Sprintf("budget_scope %q requires prevent_further_usage to be true", scope))
 	}
+	if scope == "user" && m.AlertsEnabled.ValueBool() {
+		diags.AddAttributeError(path.Root("alerts_enabled"), "Unsupported alerts_enabled", "GitHub does not send alerts for user-scoped budgets")
+	}
+	if scope == "user" && !m.AlertRecipients.IsNull() && len(m.AlertRecipients.Elements()) > 0 {
+		diags.AddAttributeError(path.Root("alert_recipients"), "Unsupported alert_recipients", "GitHub does not send alerts for user-scoped budgets")
+	}
 	if m.Type.ValueString() == "BundlePricing" && sku != "ai_credits" {
 		diags.AddAttributeError(path.Root("budget_product_sku"), "Unsupported budget_product_sku", "budget_type \"BundlePricing\" requires budget_product_sku \"ai_credits\"")
 	}
@@ -142,7 +149,7 @@ func (r *budgetResource) Metadata(_ context.Context, _ resource.MetadataRequest,
 }
 func (r *budgetResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	replace := func() []planmodifier.String { return []planmodifier.String{stringplanmodifier.RequiresReplace()} }
-	resp.Schema = schema.Schema{MarkdownDescription: "Manages a GitHub Enterprise Cloud billing budget. A budget caps spending for one scope (enterprise, organization, repository, cost center, all users, all users of a cost center, or one user). GitHub enforces the cap server-side; this resource only declares it. **Destroying it removes the cap**; spending already incurred is unaffected. Amounts are whole dollars, or a number of licenses for license-based products. Requires an enterprise owner or billing manager token with `manage_billing:enterprise`; fine-grained tokens are not supported by these endpoints.", Attributes: map[string]schema.Attribute{
+	resp.Schema = schema.Schema{MarkdownDescription: "Manages a GitHub Enterprise Cloud billing budget. A budget caps spending for one scope (enterprise, organization, repository, cost center, all users, all users of a cost center, or one user). GitHub enforces the cap server-side; this resource only declares it. **Destroying it removes the cap**; spending already incurred is unaffected. Amounts are whole dollars, or a number of licenses for license-based products. Requires a token with `manage_billing:enterprise`: an enterprise owner or billing manager, or an organization administrator for organization and repository scopes. Fine-grained tokens are not supported by these endpoints. Changing `budget_scope`, `budget_type`, `budget_product_sku` or `user` replaces the budget, so a new budget ID starts from zero consumption.", Attributes: map[string]schema.Attribute{
 		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "Stable identity: enterprise_slug:budget_id.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		"enterprise_slug": schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Enterprise account slug. Defaults to the provider-level enterprise_slug. Changing it replaces the resource.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: replace()},
 		"budget_id":       schema.StringAttribute{Computed: true, MarkdownDescription: "Opaque budget ID assigned by GitHub.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
@@ -160,11 +167,32 @@ func (r *budgetResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 		"alerts_enabled":        schema.BoolAttribute{Optional: true, Computed: true, MarkdownDescription: "Whether GitHub sends budget alerts. Always disabled for `user` scope.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
 		"alert_recipients":      schema.ListAttribute{Optional: true, Computed: true, ElementType: types.StringType, MarkdownDescription: "Logins that receive budget alerts. Rejected for `user` scope.", PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()}},
 		"expires_at":            schema.StringAttribute{Optional: true, MarkdownDescription: "Expiry date in YYYY-MM-DD format. Only supported for `user` scope. Changing it replaces the budget.", Validators: []validator.String{dateRule()}, PlanModifiers: replace()},
-		"consumed_amount":       schema.Float64Attribute{Computed: true, MarkdownDescription: "Amount consumed so far, in the budget's unit. Read-only; it changes without any configuration change."},
+		"consumed_amount":       schema.Float64Attribute{Computed: true, MarkdownDescription: "Amount consumed so far, in the budget's unit. Read-only; it changes without any configuration change. GitHub rounds it to two decimals when one budget is read and returns more precision in the list, so it can differ in the last digits from the `budgets` data source."},
 	}}
 }
 func (r *budgetResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	applyEnterpriseSlugDefault(ctx, r.enterpriseSlug, req, resp)
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	var plan budgetModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() || !budgetConfigKnown(&plan) {
+		return
+	}
+	// Report cross-field mistakes at plan time, not after the user approves.
+	resp.Diagnostics.Append(validateBudget(&plan)...)
+}
+
+// budgetConfigKnown skips plan-time validation while a value is still unknown,
+// because an unknown reads as an empty string here.
+func budgetConfigKnown(m *budgetModel) bool {
+	for _, v := range []attr.Value{m.Scope, m.SKU, m.EntityName, m.User, m.ExpiresAt, m.PreventFurtherUsage, m.AlertsEnabled, m.AlertRecipients} {
+		if v.IsUnknown() {
+			return false
+		}
+	}
+	return true
 }
 func (r *budgetResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data budgetModel
@@ -214,6 +242,10 @@ func (r *budgetResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 	data.Enterprise = old.Enterprise
+	if !data.EntityName.Equal(old.EntityName) {
+		resp.Diagnostics.AddWarning("budget_entity_name is not sent to GitHub",
+			fmt.Sprintf("The budget stays on %q; only the value Terraform records changes. Destroy and recreate the resource to target a different entity.", old.EntityName.ValueString()))
+	}
 	b, err := r.client.UpdateBudget(ctx, old.Enterprise.ValueString(), old.BudgetID.ValueString(), data.input())
 	if err != nil {
 		resp.Diagnostics.AddError("Update budget", err.Error())

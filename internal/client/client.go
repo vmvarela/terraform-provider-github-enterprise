@@ -55,6 +55,8 @@ func statusHint(status int) string {
 		return "check that the token is valid and has not expired"
 	case status == http.StatusForbidden:
 		return "the token may lack the required enterprise scope, or the account may not be an enterprise owner"
+	case status == http.StatusUnprocessableEntity:
+		return "GitHub rejected the request; check that the scope, pricing type, SKU and alerting combination is valid for this enterprise"
 	case status == http.StatusNotFound:
 		return "the object does not exist, or the token cannot see it; check the slug or ID and the token permissions"
 	case status == http.StatusTooManyRequests:
