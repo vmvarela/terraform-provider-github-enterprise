@@ -36,9 +36,9 @@ type costCenterModel struct {
 	Azure        types.String `tfsdk:"azure_subscription"`
 }
 
-// validCostCenterID treats the ID as an opaque string: it only has to be a
+// validOpaqueID treats the ID as an opaque string: it only has to be a
 // single, safe URL path segment, not a UUID or number.
-func validCostCenterID(s string) bool {
+func validOpaqueID(s string) bool {
 	if s == "" || s == "." || s == ".." || len(s) > 256 || strings.ContainsAny(s, idSeparator+"/") {
 		return false
 	}
@@ -49,12 +49,17 @@ func validCostCenterID(s string) bool {
 	}
 	return true
 }
-func costCenterIDRule() validator.String {
-	return stringRule{"Must be the opaque cost center ID returned by GitHub: a single path segment without separators, whitespace or control characters.", validCostCenterID}
+
+// opaqueIDRule words the same rule for each object, so a bad budget ID is not
+// reported as a cost center ID.
+func opaqueIDRule(what string) validator.String {
+	return stringRule{"Must be the opaque " + what + " returned by GitHub: a single path segment without separators, whitespace or control characters.", validOpaqueID}
 }
+func costCenterIDRule() validator.String { return opaqueIDRule("cost center ID") }
+func budgetIDRule() validator.String     { return opaqueIDRule("budget ID") }
 func parseCostCenterImportID(id string) (enterprise, costCenter string, err error) {
 	parts := strings.Split(id, idSeparator)
-	if len(parts) != 2 || !enterpriseSlugPattern.MatchString(parts[0]) || !validCostCenterID(parts[1]) {
+	if len(parts) != 2 || !enterpriseSlugPattern.MatchString(parts[0]) || !validOpaqueID(parts[1]) {
 		return "", "", fmt.Errorf("expected enterprise_slug:cost_center_id")
 	}
 	return parts[0], parts[1], nil
@@ -78,6 +83,14 @@ func nullIfEmpty(s string) types.String {
 		return types.StringNull()
 	}
 	return types.StringValue(s)
+}
+
+// floatOrNull keeps a missing number distinguishable from a real zero.
+func floatOrNull(f *float64) types.Float64 {
+	if f == nil {
+		return types.Float64Null()
+	}
+	return types.Float64Value(*f)
 }
 
 func (m *costCenterModel) refresh(cc *github.CostCenter) {
@@ -115,7 +128,7 @@ func (r *costCenterResource) Create(ctx context.Context, req resource.CreateRequ
 		resp.Diagnostics.AddError("Create cost center", err.Error())
 		// A known ID is persisted with the planned name (last known, not observed)
 		// so the next apply cannot orphan or duplicate it; Read corrects it.
-		if cc != nil && validCostCenterID(cc.ID) {
+		if cc != nil && validOpaqueID(cc.ID) {
 			data.ID = types.StringValue(joinID(data.Enterprise.ValueString(), cc.ID))
 			data.CostCenterID = types.StringValue(cc.ID)
 			data.State, data.Azure = nullIfEmpty(strOrEmpty(cc.State)), types.StringPointerValue(cc.AzureSubscription)

@@ -74,11 +74,35 @@ func TestBudgetDataSourceReadsConsumption(t *testing.T) {
 	}
 }
 
+// An absent consumed_amount must stay null instead of reading as zero.
+func TestBudgetDataSourceMissingConsumedAmountIsNull(t *testing.T) {
+	c := budgetTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"id":"b1","budget_scope":"enterprise","budget_amount":10}`)
+	})
+	d := &budgetDataSource{configuredDataSource{client: c}}
+	state, resp := readBudgetDataSource(t, d, budgetDataModel{
+		Enterprise: types.StringValue("acme"), BudgetID: types.StringValue("b1"),
+		ID: types.StringNull(), Scope: types.StringNull(), EntityName: types.StringNull(),
+		User: types.StringNull(), Amount: types.Int64Null(), PreventFurtherUsage: types.BoolNull(),
+		Type: types.StringNull(), SKU: types.StringNull(), AlertsEnabled: types.BoolNull(),
+		AlertRecipients: types.ListNull(types.StringType), ExpiresAt: types.StringNull(), ConsumedAmount: types.Float64Null(),
+	})
+	if resp.Diagnostics.HasError() {
+		t.Fatal(resp.Diagnostics)
+	}
+	var got budgetDataModel
+	state.Get(context.Background(), &got)
+	if !got.ConsumedAmount.IsNull() {
+		t.Errorf("consumed_amount = %v, want null", got.ConsumedAmount)
+	}
+}
+
 func TestBudgetsDataSourceSendsFiltersAndLists(t *testing.T) {
 	var query string
 	c := budgetTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		query = r.URL.RawQuery
-		fmt.Fprintf(w, `{"budgets":[%s,%s],"has_next_page":false,"total_count":2}`, budgetFixture, budgetFixture)
+		second := strings.Replace(budgetFixture, `"b1"`, `"b2"`, 1)
+		fmt.Fprintf(w, `{"budgets":[%s,%s],"has_next_page":false,"total_count":2}`, budgetFixture, second)
 	})
 	d := &budgetsDataSource{configuredDataSource{client: c}}
 	state, resp := readBudgetDataSource(t, d, budgetsDataModel{
@@ -95,13 +119,18 @@ func TestBudgetsDataSourceSendsFiltersAndLists(t *testing.T) {
 			t.Errorf("query %q missing %q", query, want)
 		}
 	}
-	if got.ID.ValueString() != "acme:budgets?scope=user?user=octocat" || !strings.Contains(got.Budgets.String(), "12.5") {
+	if got.ID.ValueString() != "acme:budgets?scope=user&user=octocat" || !strings.Contains(got.Budgets.String(), "12.5") {
 		t.Errorf("id=%s budgets=%s", got.ID, got.Budgets)
+	}
+	if !strings.Contains(got.Budgets.String(), "b2") {
+		t.Errorf("second budget missing from the list: %s", got.Budgets)
 	}
 }
 
 func TestBudgetsDataSourceEmptyListIsNotNull(t *testing.T) {
+	var query string
 	c := budgetTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
 		fmt.Fprint(w, `{"budgets":[],"has_next_page":false,"total_count":0}`)
 	})
 	d := &budgetsDataSource{configuredDataSource{client: c}}
@@ -116,5 +145,11 @@ func TestBudgetsDataSourceEmptyListIsNotNull(t *testing.T) {
 	state.Get(context.Background(), &got)
 	if got.Budgets.IsNull() || got.Budgets.String() != "[]" {
 		t.Errorf("budgets = %v", got.Budgets)
+	}
+	if strings.Contains(query, "scope=") || strings.Contains(query, "user=") {
+		t.Errorf("omitted filters must not be sent: %q", query)
+	}
+	if got.ID.ValueString() != "acme:budgets" {
+		t.Errorf("id = %s", got.ID.ValueString())
 	}
 }

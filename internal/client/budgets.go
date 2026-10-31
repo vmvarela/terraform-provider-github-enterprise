@@ -23,7 +23,7 @@ type Budget struct {
 	WillAlert           bool
 	AlertRecipients     []string
 	ExpiresAt           string
-	ConsumedAmount      float64
+	ConsumedAmount      *float64
 }
 
 // BudgetInput carries the writable fields. Amount is a whole number of dollars
@@ -57,7 +57,7 @@ type budgetJSON struct {
 	SKU                 string          `json:"budget_product_sku,omitempty"`
 	Alerting            *budgetAlerting `json:"budget_alerting,omitempty"`
 	ExpiresAt           string          `json:"expires_at,omitempty"`
-	ConsumedAmount      float64         `json:"consumed_amount,omitempty"`
+	ConsumedAmount      *float64        `json:"consumed_amount,omitempty"`
 }
 
 func (b *budgetJSON) budget() *Budget {
@@ -107,6 +107,7 @@ func (c *Client) Budgets(ctx context.Context, enterprise, scope, user string) ([
 		query.Set("user", user)
 	}
 	var all []*Budget
+	seen := make(map[string]bool)
 	for page := 1; page <= maxPages; page++ {
 		query.Set("page", strconv.Itoa(page))
 		var out struct {
@@ -123,6 +124,12 @@ func (c *Client) Budgets(ctx context.Context, enterprise, scope, user string) ([
 			if b == nil || b.ID == "" {
 				return nil, fmt.Errorf("GitHub returned a budget without its ID")
 			}
+			// A repeated ID means the server re-served a page; treat it as a
+			// malformed response rather than duplicating entries in state.
+			if seen[b.ID] {
+				return nil, fmt.Errorf("GitHub returned budget %q twice; refusing an inconsistent list", b.ID)
+			}
+			seen[b.ID] = true
 			all = append(all, b.budget())
 		}
 		if !out.HasNextPage {

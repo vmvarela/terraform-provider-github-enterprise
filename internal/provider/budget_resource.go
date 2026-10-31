@@ -58,7 +58,7 @@ func (m *budgetModel) refresh(ctx context.Context, b *client.Budget) diag.Diagno
 	m.SKU = nullIfEmpty(b.SKU)
 	m.AlertsEnabled = types.BoolValue(b.WillAlert)
 	m.ExpiresAt = nullIfEmpty(b.ExpiresAt)
-	m.ConsumedAmount = types.Float64Value(b.ConsumedAmount)
+	m.ConsumedAmount = floatOrNull(b.ConsumedAmount)
 	// GitHub answers with the entity's display name, not the login or ID that
 	// was configured, so a known value is never overwritten from the API.
 	if m.EntityName.IsNull() || m.EntityName.ValueString() == "" {
@@ -235,7 +235,7 @@ func (r *budgetResource) Delete(ctx context.Context, req resource.DeleteRequest,
 }
 func parseBudgetImportID(id string) (enterprise, budgetID string, err error) {
 	parts := strings.Split(id, idSeparator)
-	if len(parts) != 2 || !enterpriseSlugPattern.MatchString(parts[0]) || !validCostCenterID(parts[1]) {
+	if len(parts) != 2 || !enterpriseSlugPattern.MatchString(parts[0]) || !validOpaqueID(parts[1]) {
 		return "", "", fmt.Errorf("expected enterprise_slug:budget_id")
 	}
 	return parts[0], parts[1], nil

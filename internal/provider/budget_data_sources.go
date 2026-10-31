@@ -65,7 +65,7 @@ func budgetObject(b *client.Budget) (types.Object, diag.Diagnostics) {
 		"alerts_enabled":        types.BoolValue(b.WillAlert),
 		"alert_recipients":      list,
 		"expires_at":            nullIfEmpty(b.ExpiresAt),
-		"consumed_amount":       types.Float64Value(b.ConsumedAmount),
+		"consumed_amount":       floatOrNull(b.ConsumedAmount),
 	})
 	all.Append(ds...)
 	return obj, all
@@ -96,7 +96,7 @@ func (d *budgetDataSource) Schema(_ context.Context, _ datasource.SchemaRequest,
 	a := budgetDataAttributes()
 	a["id"] = schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug:budget_id."}
 	a["enterprise_slug"] = enterpriseDataAttribute()
-	a["budget_id"] = schema.StringAttribute{Required: true, MarkdownDescription: "Opaque budget ID assigned by GitHub.", Validators: []validator.String{costCenterIDRule()}}
+	a["budget_id"] = schema.StringAttribute{Required: true, MarkdownDescription: "Opaque budget ID assigned by GitHub.", Validators: []validator.String{budgetIDRule()}}
 	resp.Schema = schema.Schema{MarkdownDescription: "Reads one billing budget, including the amount consumed so far. Read-only: it never creates or changes a budget.", Attributes: a}
 }
 func (d *budgetDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -188,11 +188,13 @@ func (d *budgetsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	data.Budgets, ds = types.ListValue(types.ObjectType{AttrTypes: budgetTypes_}, values)
 	resp.Diagnostics.Append(ds...)
 	id := joinID(enterprise.ValueString(), "budgets")
+	sep := "?"
 	if scope != "" {
-		id += "?scope=" + url.QueryEscape(scope)
+		id += sep + "scope=" + url.QueryEscape(scope)
+		sep = "&"
 	}
 	if user != "" {
-		id += "?user=" + url.QueryEscape(user)
+		id += sep + "user=" + url.QueryEscape(user)
 	}
 	data.ID = types.StringValue(id)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
