@@ -12,18 +12,27 @@ Version **0.5.0** is a breaking release for import strings: composite IDs use `:
 
 Version **0.6.0** adds `github_enterprise_budget`: a spending cap for an enterprise, organization, repository, cost center, a group of users or one user. GitHub enforces the cap server-side and destroying the resource removes it; spending already incurred is unaffected. Amounts are whole dollars, or a number of licenses for license-based products.
 
+Version **0.6.1** adds the read-only `github_enterprise_budget` and
+`github_enterprise_budgets` data sources, so budgets can be looked up and their
+consumption read without being managed by Terraform. It also renames the budget
+login from `user` to `username`, the name this provider and the official one use
+elsewhere, and renames the plural data source filter from `scope` to
+`budget_scope`. Both renames are breaking for anyone who wrote the 0.6.0 spelling;
+0.6.0 was published the same day, so this is a patch release rather than a new
+minor.
+
 Start with the [quickstart](docs/guides/quickstart.md) if you want one page from token to a working team.
 
 ## Create a team
 
-Use a published 0.6.x release for this example. Save it as `main.tf`, replace `my-enterprise` with your enterprise slug, and set a token as described under [Authentication](#authentication). The team starts without organization assignments:
+Use a published 0.6.1 or later 0.6.x release for this example. Save it as `main.tf`, replace `my-enterprise` with your enterprise slug, and set a token as described under [Authentication](#authentication). The team starts without organization assignments:
 
 ```hcl
 terraform {
   required_providers {
     github-enterprise = {
       source  = "vmvarela/github-enterprise"
-      version = "~> 0.6.0"
+      version = "~> 0.6.1"
     }
   }
 }
