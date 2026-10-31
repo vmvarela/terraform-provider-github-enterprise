@@ -15,7 +15,7 @@ func budgetModelFor(scope, entity, user, sku, typ string, prevent bool) *budgetM
 		Enterprise:          types.StringValue("ent"),
 		Scope:               types.StringValue(scope),
 		EntityName:          types.StringNull(),
-		User:                types.StringNull(),
+		Username:            types.StringNull(),
 		Amount:              types.Int64Value(100),
 		PreventFurtherUsage: types.BoolValue(prevent),
 		Type:                types.StringValue(typ),
@@ -28,7 +28,7 @@ func budgetModelFor(scope, entity, user, sku, typ string, prevent bool) *budgetM
 		m.EntityName = types.StringValue(entity)
 	}
 	if user != "" {
-		m.User = types.StringValue(user)
+		m.Username = types.StringValue(user)
 	}
 	if sku != "" {
 		m.SKU = types.StringValue(sku)

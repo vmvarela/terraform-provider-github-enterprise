@@ -37,7 +37,7 @@ type budgetModel struct {
 	BudgetID            types.String  `tfsdk:"budget_id"`
 	Scope               types.String  `tfsdk:"budget_scope"`
 	EntityName          types.String  `tfsdk:"budget_entity_name"`
-	User                types.String  `tfsdk:"user"`
+	Username            types.String  `tfsdk:"username"`
 	Amount              types.Int64   `tfsdk:"budget_amount"`
 	PreventFurtherUsage types.Bool    `tfsdk:"prevent_further_usage"`
 	Type                types.String  `tfsdk:"budget_type"`
@@ -52,7 +52,7 @@ func (m *budgetModel) refresh(ctx context.Context, b *client.Budget) diag.Diagno
 	m.ID = types.StringValue(joinID(m.Enterprise.ValueString(), b.ID))
 	m.BudgetID = types.StringValue(b.ID)
 	m.Scope = types.StringValue(b.Scope)
-	m.User = nullIfEmpty(b.User)
+	m.Username = nullIfEmpty(b.User)
 	m.Amount = types.Int64Value(b.Amount)
 	m.PreventFurtherUsage = types.BoolValue(b.PreventFurtherUsage)
 	m.Type = types.StringValue(b.Type)
@@ -81,7 +81,7 @@ func (m *budgetModel) input() client.BudgetInput {
 	return client.BudgetInput{
 		Scope:               m.Scope.ValueString(),
 		EntityName:          m.EntityName.ValueString(),
-		User:                m.User.ValueString(),
+		User:                m.Username.ValueString(),
 		Amount:              m.Amount.ValueInt64(),
 		PreventFurtherUsage: m.PreventFurtherUsage.ValueBool(),
 		Type:                m.Type.ValueString(),
@@ -107,7 +107,7 @@ func listOf(l types.List) []string {
 func validateBudget(m *budgetModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 	scope, sku := m.Scope.ValueString(), m.SKU.ValueString()
-	entity, user := m.EntityName.ValueString(), m.User.ValueString()
+	entity, username := m.EntityName.ValueString(), m.Username.ValueString()
 
 	needsEntity := map[string]bool{"organization": true, "repository": true, "cost_center": true, "multi_user_cost_center": true}[scope]
 	if needsEntity && entity == "" {
@@ -116,11 +116,11 @@ func validateBudget(m *budgetModel) diag.Diagnostics {
 	if !needsEntity && entity != "" {
 		diags.AddAttributeError(path.Root("budget_entity_name"), "Unused budget_entity_name", fmt.Sprintf("budget_scope %q does not use budget_entity_name", scope))
 	}
-	if scope == "user" && user == "" {
-		diags.AddAttributeError(path.Root("user"), "Missing user", "budget_scope \"user\" requires user")
+	if scope == "user" && username == "" {
+		diags.AddAttributeError(path.Root("username"), "Missing username", "budget_scope \"user\" requires username")
 	}
-	if scope != "user" && user != "" {
-		diags.AddAttributeError(path.Root("user"), "Unused user", fmt.Sprintf("user is only used when budget_scope is \"user\", not %q", scope))
+	if scope != "user" && username != "" {
+		diags.AddAttributeError(path.Root("username"), "Unused username", fmt.Sprintf("username is only used when budget_scope is \"user\", not %q", scope))
 	}
 	if scope != "user" && !m.ExpiresAt.IsNull() {
 		diags.AddAttributeError(path.Root("expires_at"), "Unsupported expires_at", "expires_at is only supported for user-scoped budgets")
@@ -159,7 +159,7 @@ func (r *budgetResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 		// recreate a real spending cap after an import. Changing the value only
 		// updates what Terraform records.
 		"budget_entity_name":    schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Entity the budget applies to: organization login, `owner/repo`, or cost center UUID. Not used by `enterprise`, `multi_user_customer` and `user`. GitHub answers with the entity's display name, so a configured value is never overwritten and an imported budget records the display name until the next apply. Changing this value only updates what Terraform records; a budget cannot move between entities, so recreate it to target a different one."},
-		"user":                  schema.StringAttribute{Optional: true, MarkdownDescription: "GitHub login the budget applies to. Required when `budget_scope` is `user`. Changing it replaces the budget.", Validators: []validator.String{usernameRule()}, PlanModifiers: replace()},
+		"username":              schema.StringAttribute{Optional: true, MarkdownDescription: "GitHub login the budget applies to. Required when `budget_scope` is `user`. Changing it replaces the budget.", Validators: []validator.String{usernameRule()}, PlanModifiers: replace()},
 		"budget_amount":         schema.Int64Attribute{Required: true, MarkdownDescription: "Budget amount in whole dollars, or a number of licenses for license-based products. Fractions are not accepted by the API."},
 		"prevent_further_usage": schema.BoolAttribute{Required: true, MarkdownDescription: "Whether GitHub blocks additional spending once the budget is exceeded. Must be true for `user`, `multi_user_customer` and `multi_user_cost_center` scopes."},
 		"budget_type":           schema.StringAttribute{Required: true, MarkdownDescription: "Pricing model: `ProductPricing` (all SKUs of a product), `SkuPricing` (one SKU) or `BundlePricing` (AI credits). Changing it replaces the budget.", Validators: []validator.String{oneOf(budgetTypes...)}, PlanModifiers: replace()},
@@ -187,7 +187,7 @@ func (r *budgetResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 // budgetConfigKnown skips plan-time validation while a value is still unknown,
 // because an unknown reads as an empty string here.
 func budgetConfigKnown(m *budgetModel) bool {
-	for _, v := range []attr.Value{m.Scope, m.SKU, m.EntityName, m.User, m.ExpiresAt, m.PreventFurtherUsage, m.AlertsEnabled, m.AlertRecipients} {
+	for _, v := range []attr.Value{m.Scope, m.SKU, m.EntityName, m.Username, m.ExpiresAt, m.PreventFurtherUsage, m.AlertsEnabled, m.AlertRecipients} {
 		if v.IsUnknown() {
 			return false
 		}

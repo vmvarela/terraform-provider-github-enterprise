@@ -91,7 +91,7 @@ func writeDoc(title, path, example string, schema *tfprotov6.Schema, importText 
 		fmt.Fprintln(&out, "\nEach team object contains `team_id`, `name`, `slug`, `description`, `group_id`, and `organization_selection_type`.")
 	}
 	if title == "github_enterprise_budgets (Data Source)" {
-		fmt.Fprintln(&out, "\nEach budget object contains `budget_id`, `budget_scope`, `budget_entity_name`, `user`, `budget_amount`, `prevent_further_usage`, `budget_type`, `budget_product_sku`, `alerts_enabled`, `alert_recipients`, `expires_at`, and `consumed_amount`.")
+		fmt.Fprintln(&out, "\nEach budget object contains `budget_id`, `budget_scope`, `budget_entity_name`, `username`, `budget_amount`, `prevent_further_usage`, `budget_type`, `budget_product_sku`, `alerts_enabled`, `alert_recipients`, `expires_at`, and `consumed_amount`.")
 	}
 	if importText != "" {
 		fmt.Fprintf(&out, "\n## Import\n\n```sh\n%s```\n", importText)

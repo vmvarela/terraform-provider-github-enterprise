@@ -20,7 +20,7 @@ resource "github_enterprise_budget" "ai_credits" {
   provider = github-enterprise
 
   budget_scope          = "user"
-  user                  = "octocat"
+  username              = "octocat"
   budget_type           = "BundlePricing"
   budget_product_sku    = "ai_credits"
   budget_amount         = 30
