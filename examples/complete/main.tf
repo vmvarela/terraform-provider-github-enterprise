@@ -6,7 +6,7 @@ terraform {
     }
     github-enterprise = {
       source  = "vmvarela/github-enterprise"
-      version = "~> 0.5"
+      version = "~> 0.6"
     }
   }
 }

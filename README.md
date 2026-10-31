@@ -10,18 +10,20 @@ Version **0.4.0** moves the HTTP layer onto `google/go-github` v93. It is a brea
 
 Version **0.5.0** is a breaking release for import strings: composite IDs use `:` (`my-enterprise:123456`), the separator the official `github` provider uses, so the same string works with either provider. Existing state keeps working, but its `id` attribute changes on the next refresh and stored import commands must be rewritten. It also lets `github_enterprise_scim_group` look a group up by `display_name` or `external_id`, failing when the name matches more than one group.
 
+Version **0.6.0** adds `github_enterprise_budget`: a spending cap for an enterprise, organization, repository, cost center, a group of users or one user. GitHub enforces the cap server-side and destroying the resource removes it; spending already incurred is unaffected. Amounts are whole dollars, or a number of licenses for license-based products.
+
 Start with the [quickstart](docs/guides/quickstart.md) if you want one page from token to a working team.
 
 ## Create a team
 
-Use a published 0.5.x release for this example. Save it as `main.tf`, replace `my-enterprise` with your enterprise slug, and set a token as described under [Authentication](#authentication). The team starts without organization assignments:
+Use a published 0.6.x release for this example. Save it as `main.tf`, replace `my-enterprise` with your enterprise slug, and set a token as described under [Authentication](#authentication). The team starts without organization assignments:
 
 ```hcl
 terraform {
   required_providers {
     github-enterprise = {
       source  = "vmvarela/github-enterprise"
-      version = "~> 0.5.0"
+      version = "~> 0.6.0"
     }
   }
 }
@@ -45,7 +47,7 @@ terraform init
 terraform plan
 ```
 
-Use `tofu` instead of `terraform` for OpenTofu. The constraint stays within 0.5.x; commit the lock file to keep the selected version reproducible. See the [complete example](examples/complete) for both providers, membership and organization assignments in one configuration.
+Use `tofu` instead of `terraform` for OpenTofu. The constraint stays within 0.6.x; commit the lock file to keep the selected version reproducible. See the [complete example](examples/complete) for both providers, membership and organization assignments in one configuration.
 
 **Keep `provider = github-enterprise` on every resource and data source.** The `github_enterprise_` prefix otherwise makes Terraform select `integrations/github`, which shares that prefix.
 
