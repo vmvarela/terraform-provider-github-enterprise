@@ -162,9 +162,13 @@ on 2026-10-30 using a classic PAT, exercising single-object lookups and `id eq` 
 lists only. Both cost-center suites passed against `api.github.com` on 2026-10-30 using
 a classic PAT: create, read, rename, import, resource assignment and archival on the
 test-created center. Live coexistence with `integrations/github` 6.13.0 was verified on 2026-10-23
-through `examples/complete`. GitHub App tokens, fine-grained PATs, IdP group lifecycle,
-multi-page SCIM pagination, concurrent IdP changes and data-residency hosts remain
-unverified; record a new result here when one of them is exercised.
+through `examples/complete`. The budget data sources were exercised read-only against
+`api.github.com` on 2026-10-31 through a local Terraform run with a development
+override: the list followed every page, the `scope` filter narrowed the result and the
+single-object lookup read one budget by ID, with nothing created or changed. GitHub App
+tokens, fine-grained PATs, IdP group lifecycle, multi-page SCIM pagination, concurrent
+IdP changes and data-residency hosts remain unverified; record a new result here when
+one of them is exercised.
 
 ## Overlap with the official provider
 
