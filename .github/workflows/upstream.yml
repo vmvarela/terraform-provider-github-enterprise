@@ -1,0 +1,38 @@
+name: Upstream
+on:
+  schedule:
+    # Weekly: the official provider and go-github publish without notice.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'scripts/upstream-check.sh'
+      - 'scripts/go-github-check.sh'
+      - '.github/workflows/upstream.yml'
+permissions:
+  contents: read
+jobs:
+  schema-collision:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+      - name: Fail if a type we declare is also declared by the official provider
+        run: make upstream-check
+  go-github:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Check the go-github release, build against it and diff the enterprise API
+        run: make go-github-check

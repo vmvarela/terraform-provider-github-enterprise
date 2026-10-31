@@ -70,6 +70,12 @@ commit signing and from SSH keys.
       the shipped behaviour.
 - [ ] `make check`, `make build` and `make docs` pass locally, and `make docs`
       leaves no diff.
+- [ ] `make go-github-check` shows no newer patch of the pinned go-github major
+      (a newer patch is a reason to release a dependency bump first).
+- [ ] `make upstream-check` reports no collision: no type this release declares
+      is also declared by the official `github` provider. A collision means the
+      type must be removed here instead of released (see
+      [CONTRIBUTING.md](CONTRIBUTING.md#overlap-with-the-official-provider)).
 - [ ] The signing key is unexpired, registered in both registry accounts, and its
       fingerprint matches `docs/guides/signing-key.asc`.
 - [ ] `docs/` describes only consumer-facing behaviour.

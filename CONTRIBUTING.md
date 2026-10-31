@@ -169,3 +169,17 @@ tell which provider owns `github_enterprise_ruleset`. The first minor release af
 the official equivalent ships drops our resource or data source, and its release
 notes name the minimum official version and the import path that avoids deleting
 remote objects. See the [compatibility contract](docs/guides/initial-contract.md).
+
+`terraform init` does not catch this: Terraform has no cross-provider type
+registry, so a duplicated type silently binds to the provider whose local name
+matches the prefix. Two scripts track the gap instead, and the `Upstream`
+workflow runs both weekly and on demand:
+
+- `make upstream-check` compares the types this provider declares with the
+  official provider's published schema and fails on any collision. Release
+  notes must not ship a release that fails it.
+- `make go-github-check` reports a newer go-github, builds and tests the
+  provider against the newest patch of the pinned major, lists the enterprise
+  SDK methods added since the pinned version, and prints the enterprise methods
+  this provider still does not call. A new major or a build failure fails the
+  job; new methods and unused methods are the backlog to turn into issues.

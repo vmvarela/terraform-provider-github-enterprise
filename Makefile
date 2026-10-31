@@ -1,4 +1,4 @@
-.PHONY: build test integration check fmt docs package-check
+.PHONY: build test integration check fmt docs package-check upstream-check go-github-check
 
 build:
 	go build -trimpath -o bin/terraform-provider-github-enterprise .
@@ -24,3 +24,13 @@ fmt:
 package-check:
 	python3 -m unittest discover -s scripts -p 'test_*.py'
 	bash scripts/package-check.sh
+
+# Fails when a type this provider declares is also declared by the official
+# github provider, which would make the two unusable side by side.
+upstream-check:
+	./scripts/upstream-check.sh $(UPSTREAM_VERSION)
+
+# Reports a newer go-github, whether the provider still builds against it, and
+# which enterprise API methods appeared since the pinned version.
+go-github-check:
+	./scripts/go-github-check.sh
