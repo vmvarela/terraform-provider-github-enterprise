@@ -85,7 +85,7 @@ SCIM lookups expose opaque, case-sensitive `scim_group_id` and `scim_user_id` st
 
 Cost-center additions check other active centers and refuse known conflicts rather than silently moving billing. This requires enterprise-wide visibility and cannot prevent concurrent external changes. Partial failures retain recoverable state; inspect an unexpected reassignment before retrying. Unknown resource types stop assignment reconciliation rather than being discarded.
 
-Supply the exact identifiers accepted by GitHub's billing API. Repository and enterprise-team identifier formats remain unverified; organization assignment, import and archival are covered by the live suite. Budgets, analytics and AI credit pool configuration are outside the scope.
+Supply the exact identifiers accepted by GitHub's billing API. Repository and enterprise-team identifier formats remain unverified; organization assignment, import and archival are covered by the live suite. Budgets are covered by [`budget`](docs/resources/budget.md) and the read-only [`budget`](docs/data-sources/budget.md) and [`budgets`](docs/data-sources/budgets.md) lookups, which also report the amount consumed so far. Usage analytics and AI credit pool configuration remain outside the scope.
 
 GitHub can hide permission failures behind a 404. Check token access before accepting a plan that recreates a missing object. Explicit permission, rate-limit and server errors stop refresh without dropping state. Writes are not automatically retried: replaying an uncertain create can duplicate an object.
 
