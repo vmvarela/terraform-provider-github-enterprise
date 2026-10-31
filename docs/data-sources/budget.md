@@ -32,7 +32,7 @@ data "github_enterprise_budget" "actions" {
 | `budget_product_sku` | `String` | Read-only | Product or SKU covered by the budget, or null. |
 | `budget_scope` | `String` | Read-only | Scope the budget applies to. |
 | `budget_type` | `String` | Read-only | Pricing model: `ProductPricing`, `SkuPricing` or `BundlePricing`. |
-| `consumed_amount` | `Number` | Read-only | Amount consumed so far, in the budget's unit. |
+| `consumed_amount` | `Number` | Read-only | Amount consumed so far, in the budget's unit. GitHub rounds it to two decimals when one budget is read and returns more precision in the list, so the two data sources can disagree on the fraction. |
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `expires_at` | `String` | Read-only | Expiry date in YYYY-MM-DD format, or null. |
 | `id` | `String` | Read-only | enterprise_slug:budget_id. |
