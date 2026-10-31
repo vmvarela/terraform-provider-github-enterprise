@@ -41,7 +41,7 @@ func budgetDataAttributes() map[string]schema.Attribute {
 		"alerts_enabled":        schema.BoolAttribute{Computed: true, MarkdownDescription: "Whether GitHub sends budget alerts."},
 		"alert_recipients":      schema.ListAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Logins that receive budget alerts. Always an empty list when alerts are disabled."},
 		"expires_at":            schema.StringAttribute{Computed: true, MarkdownDescription: "Expiry date in YYYY-MM-DD format, or null."},
-		"consumed_amount":       schema.Float64Attribute{Computed: true, MarkdownDescription: "Amount consumed so far, in the budget's unit."},
+		"consumed_amount":       schema.Float64Attribute{Computed: true, MarkdownDescription: "Amount consumed so far, in the budget's unit. GitHub rounds it to two decimals when one budget is read and returns more precision in the list, so the two data sources can disagree on the fraction."},
 	}
 }
 
