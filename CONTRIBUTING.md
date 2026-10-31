@@ -114,6 +114,11 @@ Suites and required fixtures:
 - `TestAccCostCenter`: creates a uniquely named cost center, reads both cost-center
   data sources, renames it, imports it and checks its stable opaque ID. Destroy
   archives it; **each run leaves an archived record**, not a hard-deleted object.
+- `TestAccBudget`: requires `GITHUB_ENTERPRISE_TEST_ORG_A=<login>` plus
+  `GITHUB_ENTERPRISE_TEST_BUDGET_CONFIRM` set to exactly that login in the same
+  command. Creates an organization-scoped budget with a harmless amount and
+  `prevent_further_usage = false`, updates the amount, imports it and deletes it.
+  Nothing pre-existing is adopted or edited.
 - `TestAccCostCenterResources`: additionally requires at least one disposable,
   initially unassigned billing fixture. Set any of
   `GITHUB_ENTERPRISE_TEST_CC_USER`, `GITHUB_ENTERPRISE_TEST_CC_ORG`,
