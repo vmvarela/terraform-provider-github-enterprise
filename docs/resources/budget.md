@@ -51,7 +51,7 @@ resource "github_enterprise_budget" "ai_credits" {
 | `alert_recipients` | `List of String` | Optional | Logins that receive budget alerts. Rejected for `user` scope. |
 | `alerts_enabled` | `Bool` | Optional | Whether GitHub sends budget alerts. Always disabled for `user` scope. |
 | `budget_amount` | `Number` | Required | Budget amount in whole dollars, or a number of licenses for license-based products. Fractions are not accepted by the API. |
-| `budget_entity_name` | `String` | Optional | Entity the budget applies to: organization login, `owner/repo`, or cost center UUID. Not used by `enterprise`, `multi_user_customer` and `user`. GitHub answers with the entity's display name, so a configured value is never overwritten. Changing it replaces the budget. |
+| `budget_entity_name` | `String` | Optional | Entity the budget applies to: organization login, `owner/repo`, or cost center UUID. Not used by `enterprise`, `multi_user_customer` and `user`. GitHub answers with the entity's display name, so a configured value is never overwritten and an imported budget records the display name until the next apply. Changing this value only updates what Terraform records; a budget cannot move between entities, so recreate it to target a different one. |
 | `budget_id` | `String` | Read-only | Opaque budget ID assigned by GitHub. |
 | `budget_product_sku` | `String` | Optional | Product or SKU covered by the budget, for example `actions`, `packages`, `codespaces`, `actions_linux` or `ai_credits`. Changing it replaces the budget. |
 | `budget_scope` | `String` | Required | Scope the budget applies to: `enterprise`, `organization`, `repository`, `cost_center`, `multi_user_customer`, `multi_user_cost_center` or `user`. Changing it replaces the budget. |

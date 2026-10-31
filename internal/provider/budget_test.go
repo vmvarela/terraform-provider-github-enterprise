@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/vmvarela/terraform-provider-github-enterprise/internal/client"
 )
@@ -108,5 +110,19 @@ func TestBudgetImportID(t *testing.T) {
 	ent, id, err := parseBudgetImportID("ent:0b3f2b1a-1111-2222-3333-444455556666")
 	if err != nil || ent != "ent" || id != "0b3f2b1a-1111-2222-3333-444455556666" {
 		t.Fatalf("%q %q %v", ent, id, err)
+	}
+}
+
+// A budget cannot move between entities, and GitHub echoes the entity's display
+// name instead of the configured login. Requiring replacement would therefore
+// destroy and recreate a real spending cap the first time an imported budget is
+// applied, so the attribute must stay in place.
+func TestBudgetEntityNameDoesNotForceReplacement(t *testing.T) {
+	r := &budgetResource{}
+	var sr resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &sr)
+	attr := sr.Schema.Attributes["budget_entity_name"].(schema.StringAttribute)
+	if len(attr.PlanModifiers) != 0 {
+		t.Fatalf("budget_entity_name must not require replacement, got %d plan modifiers", len(attr.PlanModifiers))
 	}
 }
