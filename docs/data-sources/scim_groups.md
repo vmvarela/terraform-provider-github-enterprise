@@ -27,6 +27,6 @@ data "github_enterprise_scim_groups" "example" {
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `filter` | `String` | Optional | One SCIM filter passed to GitHub unchanged. Supports group externalId, id and displayName; multiple filters are not supported. |
 | `groups` | `list(object)` | Read-only | SCIM groups in API order. Each entry has the raw scim_group_id (for team group_id), IdP external_id and display_name, null when empty. |
-| `id` | `String` | Read-only | Deterministic query identity: enterprise_slug/groups, plus the escaped filter when set. |
+| `id` | `String` | Read-only | Deterministic query identity: enterprise_slug:groups, plus the escaped filter when set. |
 
 See the [provider guide](https://github.com/vmvarela/terraform-provider-github-enterprise#authentication) for authentication, ownership and compatibility requirements.

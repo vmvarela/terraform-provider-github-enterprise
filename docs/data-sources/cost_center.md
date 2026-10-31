@@ -27,7 +27,7 @@ data "github_enterprise_cost_center" "example" {
 | `azure_subscription` | `String` | Read-only | Linked Azure subscription ID, or null. |
 | `cost_center_id` | `String` | Required | Opaque cost center ID. |
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
-| `id` | `String` | Read-only | enterprise_slug/cost_center_id. |
+| `id` | `String` | Read-only | enterprise_slug:cost_center_id. |
 | `name` | `String` | Read-only | Cost center name. |
 | `resources` | `list(object)` | Read-only | Raw assignments as returned by GitHub, in API order. Type values are not interpreted, so unknown types are exposed as-is. |
 | `state` | `String` | Read-only | State reported by GitHub, or null when omitted. |

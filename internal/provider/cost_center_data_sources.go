@@ -60,7 +60,7 @@ func (d *costCenterDataSource) Metadata(_ context.Context, _ datasource.Metadata
 }
 func (d *costCenterDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	a := costCenterDataAttributes()
-	a["id"] = schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug/cost_center_id."}
+	a["id"] = schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug:cost_center_id."}
 	a["enterprise_slug"] = enterpriseDataAttribute()
 	a["cost_center_id"] = schema.StringAttribute{Required: true, MarkdownDescription: "Opaque cost center ID.", Validators: []validator.String{costCenterIDRule()}}
 	resp.Schema = schema.Schema{MarkdownDescription: "Reads one cost center, including all of its assignments. Archived cost centers are returned with their reported state.", Attributes: a}
@@ -88,7 +88,7 @@ func (d *costCenterDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 	a := obj.Attributes()
-	data.ID = types.StringValue(enterprise.ValueString() + "/" + cc.ID)
+	data.ID = types.StringValue(joinID(enterprise.ValueString(), cc.ID))
 	data.Name, data.State, data.Azure, data.Resources = a["name"].(types.String), a["state"].(types.String), a["azure_subscription"].(types.String), a["resources"].(types.List)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -108,7 +108,7 @@ func (d *costCentersDataSource) Schema(_ context.Context, _ datasource.SchemaReq
 	a := costCenterDataAttributes()
 	a["cost_center_id"] = schema.StringAttribute{Computed: true, MarkdownDescription: "Opaque cost center ID."}
 	resp.Schema = schema.Schema{MarkdownDescription: "Lists cost centers with their assignments, following every pagination page.", Attributes: map[string]schema.Attribute{
-		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug/state."},
+		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug:state."},
 		"enterprise_slug": enterpriseDataAttribute(),
 		"state":           schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Filter: active (default) or deleted.", Validators: []validator.String{oneOf("active", "deleted")}},
 		"cost_centers":    schema.ListNestedAttribute{Computed: true, MarkdownDescription: "Cost centers in API order.", NestedObject: schema.NestedAttributeObject{Attributes: a}},
@@ -149,6 +149,6 @@ func (d *costCentersDataSource) Read(ctx context.Context, req datasource.ReadReq
 	var ds diag.Diagnostics
 	data.CostCenters, ds = types.ListValue(types.ObjectType{AttrTypes: costCenterTypes}, values)
 	resp.Diagnostics.Append(ds...)
-	data.ID = types.StringValue(enterprise.ValueString() + "/" + data.State.ValueString())
+	data.ID = types.StringValue(joinID(enterprise.ValueString(), data.State.ValueString()))
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

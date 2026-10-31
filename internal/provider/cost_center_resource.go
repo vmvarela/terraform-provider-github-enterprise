@@ -39,7 +39,7 @@ type costCenterModel struct {
 // validCostCenterID treats the ID as an opaque string: it only has to be a
 // single, safe URL path segment, not a UUID or number.
 func validCostCenterID(s string) bool {
-	if s == "" || s == "." || s == ".." || len(s) > 256 || strings.Contains(s, "/") {
+	if s == "" || s == "." || s == ".." || len(s) > 256 || strings.ContainsAny(s, idSeparator+"/") {
 		return false
 	}
 	for _, r := range s {
@@ -50,12 +50,12 @@ func validCostCenterID(s string) bool {
 	return true
 }
 func costCenterIDRule() validator.String {
-	return stringRule{"Must be the opaque cost center ID returned by GitHub: a single path segment without slashes, whitespace or control characters.", validCostCenterID}
+	return stringRule{"Must be the opaque cost center ID returned by GitHub: a single path segment without separators, whitespace or control characters.", validCostCenterID}
 }
 func parseCostCenterImportID(id string) (enterprise, costCenter string, err error) {
-	parts := strings.Split(id, "/")
+	parts := strings.Split(id, idSeparator)
 	if len(parts) != 2 || !enterpriseSlugPattern.MatchString(parts[0]) || !validCostCenterID(parts[1]) {
-		return "", "", fmt.Errorf("expected enterprise_slug/cost_center_id")
+		return "", "", fmt.Errorf("expected enterprise_slug:cost_center_id")
 	}
 	return parts[0], parts[1], nil
 }
@@ -81,7 +81,7 @@ func nullIfEmpty(s string) types.String {
 }
 
 func (m *costCenterModel) refresh(cc *github.CostCenter) {
-	m.ID = types.StringValue(m.Enterprise.ValueString() + "/" + cc.ID)
+	m.ID = types.StringValue(joinID(m.Enterprise.ValueString(), cc.ID))
 	m.CostCenterID = types.StringValue(cc.ID)
 	m.Name = types.StringValue(cc.Name)
 	m.State = nullIfEmpty(strOrEmpty(cc.State))
@@ -93,7 +93,7 @@ func (r *costCenterResource) Metadata(_ context.Context, _ resource.MetadataRequ
 }
 func (r *costCenterResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Manages a GitHub Enterprise Cloud cost center name. The cost center keeps its opaque ID across renames. This resource does not own assignments; use `github_enterprise_cost_center_resources` for those. **Destroying it archives the cost center** (GitHub has no hard delete), which releases its assignments. Requires an enterprise billing manager or enterprise owner token.", Attributes: map[string]schema.Attribute{
-		"id":                 schema.StringAttribute{Computed: true, MarkdownDescription: "Stable identity: enterprise_slug/cost_center_id.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+		"id":                 schema.StringAttribute{Computed: true, MarkdownDescription: "Stable identity: enterprise_slug:cost_center_id.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		"enterprise_slug":    schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Enterprise account slug. Defaults to the provider-level enterprise_slug. Changing it replaces the resource.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"cost_center_id":     schema.StringAttribute{Computed: true, MarkdownDescription: "Opaque cost center ID assigned by GitHub.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		"name":               schema.StringAttribute{Required: true, MarkdownDescription: "Cost center name.", Validators: []validator.String{nameRule()}},
@@ -116,7 +116,7 @@ func (r *costCenterResource) Create(ctx context.Context, req resource.CreateRequ
 		// A known ID is persisted with the planned name (last known, not observed)
 		// so the next apply cannot orphan or duplicate it; Read corrects it.
 		if cc != nil && validCostCenterID(cc.ID) {
-			data.ID = types.StringValue(data.Enterprise.ValueString() + "/" + cc.ID)
+			data.ID = types.StringValue(joinID(data.Enterprise.ValueString(), cc.ID))
 			data.CostCenterID = types.StringValue(cc.ID)
 			data.State, data.Azure = nullIfEmpty(strOrEmpty(cc.State)), types.StringPointerValue(cc.AzureSubscription)
 			resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

@@ -14,9 +14,9 @@ direct membership management.
 For an existing team, import rather than creating a second binding:
 
 ```sh
-terraform import github_enterprise_team.platform my-enterprise/123456
-terraform import github_enterprise_team_membership.member my-enterprise/123456/octocat
-terraform import github_enterprise_team_organizations.platform my-enterprise/123456
+terraform import github_enterprise_team.platform my-enterprise:123456
+terraform import github_enterprise_team_membership.member my-enterprise:123456:octocat
+terraform import github_enterprise_team_organizations.platform my-enterprise:123456
 ```
 
 Run the imports with configuration matching the existing objects. Review the next

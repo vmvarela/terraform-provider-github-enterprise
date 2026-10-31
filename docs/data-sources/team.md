@@ -27,7 +27,7 @@ data "github_enterprise_team" "example" {
 | `description` | `String` | Read-only | Team description. |
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `group_id` | `String` | Read-only | Linked IdP group ID, or an empty string. |
-| `id` | `String` | Read-only | enterprise_slug/team_id. |
+| `id` | `String` | Read-only | enterprise_slug:team_id. |
 | `name` | `String` | Read-only | Team name. |
 | `organization_selection_type` | `String` | Read-only | Organization selection mode, or null when GitHub omits it. |
 | `slug` | `String` | Required | Team slug returned by GitHub, including ent: when present. |

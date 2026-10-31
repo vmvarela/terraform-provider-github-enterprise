@@ -160,6 +160,12 @@ unverified; record a new result here when one of them is exercised.
 
 Check released functionality and lifecycle semantics upstream, not just an open
 pull request or a matching name. Stop adding overlapping features once
-`integrations/github` provides an equivalent, and plan the deprecation described in
-the [compatibility contract](docs/guides/initial-contract.md) instead of
+`integrations/github` provides an equivalent, and remove ours instead of
 maintaining two implementations.
+
+Removal, not deprecation-in-place, is the rule: both providers declare `github_*`
+type names, so the same type in both makes the pair unusable — Terraform cannot
+tell which provider owns `github_enterprise_ruleset`. The first minor release after
+the official equivalent ships drops our resource or data source, and its release
+notes name the minimum official version and the import path that avoids deleting
+remote objects. See the [compatibility contract](docs/guides/initial-contract.md).

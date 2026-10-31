@@ -26,7 +26,7 @@ data "github_enterprise_cost_centers" "example" {
 | --- | --- | --- | --- |
 | `cost_centers` | `list(object)` | Read-only | Cost centers in API order. |
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
-| `id` | `String` | Read-only | enterprise_slug/state. |
+| `id` | `String` | Read-only | enterprise_slug:state. |
 | `state` | `String` | Optional | Filter: active (default) or deleted. |
 
 See the [provider guide](https://github.com/vmvarela/terraform-provider-github-enterprise#authentication) for authentication, ownership and compatibility requirements.

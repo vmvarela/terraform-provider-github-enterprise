@@ -91,8 +91,8 @@ The [compatibility contract](docs/guides/initial-contract.md) covers incomplete 
 Create matching configuration, then import the existing identity rather than recreating it. For a team and, from 0.2.0, a cost center's assignments:
 
 ```sh
-terraform import github_enterprise_team.platform my-enterprise/123456
-terraform import github_enterprise_cost_center_resources.platform my-enterprise/COST_CENTER_ID
+terraform import github_enterprise_team.platform my-enterprise:123456
+terraform import github_enterprise_cost_center_resources.platform my-enterprise:COST_CENTER_ID
 ```
 
 Team IDs are numeric; cost-center IDs are opaque strings that survive renames. See each resource's reference for its import format. When migrating from `vmvarela/github`, import here, compare the plan, then remove the old bindings **without destroying the objects** (`removed` with `destroy = false`, or `terraform state rm` with a backup). `state replace-provider` alone cannot handle renamed types and different schemas. Do not apply while both bindings exist.

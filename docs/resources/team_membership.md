@@ -26,7 +26,7 @@ resource "github_enterprise_team_membership" "example" {
 | Attribute | Type | Requirement | Description |
 | --- | --- | --- | --- |
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
-| `id` | `String` | Read-only | enterprise_slug/team_id/username. |
+| `id` | `String` | Read-only | enterprise_slug:team_id:username. |
 | `team_id` | `Number` | Required | Numeric team ID. Remains stable when a team is renamed. |
 | `user_id` | `Number` | Read-only | Numeric GitHub user ID. |
 | `username` | `String` | Required | GitHub username. |
@@ -34,7 +34,7 @@ resource "github_enterprise_team_membership" "example" {
 ## Import
 
 ```sh
-terraform import github_enterprise_team_membership.example my-enterprise/123456/octocat
+terraform import github_enterprise_team_membership.example my-enterprise:123456:octocat
 ```
 
 See the [provider guide](https://github.com/vmvarela/terraform-provider-github-enterprise#authentication) for authentication, ownership and compatibility requirements.

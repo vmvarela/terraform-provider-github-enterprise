@@ -300,7 +300,7 @@ data "github_enterprise_cost_centers" "archived" {
 	}, Steps: []tfresource.TestStep{
 		{Config: cfg("Platform"), Check: tfresource.ComposeTestCheckFunc(
 			tfresource.TestCheckResourceAttr("github_enterprise_cost_center.test", "cost_center_id", "cc-1001"),
-			tfresource.TestCheckResourceAttr("github_enterprise_cost_center.test", "id", "acme/cc-1001"),
+			tfresource.TestCheckResourceAttr("github_enterprise_cost_center.test", "id", "acme:cc-1001"),
 			tfresource.TestCheckResourceAttr("data.github_enterprise_cost_center.test", "resources.#", "5"), // five raw items over three read pages
 			tfresource.TestCheckResourceAttr("data.github_enterprise_cost_center.test", "resources.4.type", "Widget"),
 			tfresource.TestCheckResourceAttr("data.github_enterprise_cost_centers.test", "cost_centers.#", "2"),
@@ -452,7 +452,7 @@ func ccAssignState(t *testing.T, r *costCenterResourcesResource, users ...string
 	ctx := context.Background()
 	var sr resource.SchemaResponse
 	r.Schema(ctx, resource.SchemaRequest{}, &sr)
-	m := costCenterResourcesModel{ID: types.StringValue("acme/mine"), Enterprise: types.StringValue("acme"), CostCenterID: types.StringValue("mine")}
+	m := costCenterResourcesModel{ID: types.StringValue("acme:mine"), Enterprise: types.StringValue("acme"), CostCenterID: types.StringValue("mine")}
 	if ds := m.setObserved(ctx, client.CostCenterAssignments{Users: users}); ds.HasError() {
 		t.Fatal(ds)
 	}
@@ -597,7 +597,7 @@ func TestCostCenterCreateKeepsIDWhenResponseIncomplete(t *testing.T) {
 	r.Create(ctx, resource.CreateRequest{Plan: tfsdk.Plan{Schema: sr.Schema, Raw: ps.Raw}}, &resp)
 	var got costCenterModel
 	resp.State.Get(ctx, &got)
-	if !resp.Diagnostics.HasError() || got.CostCenterID.ValueString() != "cc-77" || got.ID.ValueString() != "acme/cc-77" || got.Name.ValueString() != "Planned" {
+	if !resp.Diagnostics.HasError() || got.CostCenterID.ValueString() != "cc-77" || got.ID.ValueString() != "acme:cc-77" || got.Name.ValueString() != "Planned" {
 		t.Fatalf("ID not persisted: %v %+v", resp.Diagnostics, got)
 	}
 }
@@ -620,12 +620,12 @@ func TestCostCenterPlanChangeAndIDs(t *testing.T) {
 			t.Errorf("%q rejected", good)
 		}
 	}
-	for _, bad := range []string{"acme", "acme/", "/x", "Acme/x", "acme/a/b", "acme/.."} {
+	for _, bad := range []string{"acme", "acme:", ":x", "Acme:x", "acme:a:b", "acme:..", "acme/x"} {
 		if _, _, err := parseCostCenterImportID(bad); err == nil {
 			t.Errorf("import %q accepted", bad)
 		}
 	}
-	if e, id, err := parseCostCenterImportID("acme/cc 1"); err == nil {
+	if e, id, err := parseCostCenterImportID("acme:cc 1"); err == nil {
 		t.Errorf("space accepted: %s %s", e, id)
 	}
 }
@@ -734,7 +734,7 @@ func TestCostCenterLiveGuardRefusesBaselineDelete(t *testing.T) {
 	g.Schema(ctx, resource.SchemaRequest{}, &sr)
 	del := func(id string) resource.DeleteResponse {
 		s := tfsdk.State{Schema: sr.Schema}
-		s.Set(ctx, &costCenterModel{ID: types.StringValue("acme/" + id), Enterprise: types.StringValue("acme"), CostCenterID: types.StringValue(id), Name: types.StringValue("x"), State: types.StringNull(), Azure: types.StringNull()})
+		s.Set(ctx, &costCenterModel{ID: types.StringValue("acme:" + id), Enterprise: types.StringValue("acme"), CostCenterID: types.StringValue(id), Name: types.StringValue("x"), State: types.StringNull(), Azure: types.StringNull()})
 		resp := resource.DeleteResponse{State: s}
 		g.Delete(ctx, resource.DeleteRequest{State: s}, &resp)
 		return resp

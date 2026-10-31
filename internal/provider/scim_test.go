@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -25,7 +26,7 @@ func TestSCIMIDValidation(t *testing.T) {
 	}
 }
 
-func readSCIMDataSource(t *testing.T, ds datasource.DataSource, model any) (tfsdk.State, bool) {
+func readSCIMDataSource(t *testing.T, ds datasource.DataSource, model any) (tfsdk.State, diag.Diagnostics) {
 	t.Helper()
 	ctx := context.Background()
 	var schemaResponse datasource.SchemaResponse
@@ -39,7 +40,7 @@ func readSCIMDataSource(t *testing.T, ds datasource.DataSource, model any) (tfsd
 	if response.Diagnostics.HasError() {
 		t.Log(response.Diagnostics)
 	}
-	return response.State, !response.Diagnostics.HasError()
+	return response.State, response.Diagnostics
 }
 
 func scimJSONHandler(t *testing.T, body string) http.HandlerFunc {
@@ -52,10 +53,61 @@ func scimJSONHandler(t *testing.T, body string) http.HandlerFunc {
 	}
 }
 
+func TestSCIMGroupLookupByNameFailsClosed(t *testing.T) {
+	body := func(groups ...string) string {
+		return `{"schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],"totalResults":` +
+			fmt.Sprint(len(groups)) + `,"startIndex":1,"itemsPerPage":100,"Resources":[` + strings.Join(groups, ",") + `]}`
+	}
+	for _, tc := range []struct {
+		name    string
+		model   scimGroupDataModel
+		body    string
+		want    string
+		wantErr string
+	}{
+		{"display name", scimGroupDataModel{DisplayName: types.StringValue(`Platform "Ops"`)}, body(`{"id":"g1","displayName":"Platform \"Ops\""}`), "g1", ""},
+		{"external id", scimGroupDataModel{ExternalID: types.StringValue("idp-1")}, body(`{"id":"g2","externalId":"idp-1"}`), "g2", ""},
+		{"ambiguous", scimGroupDataModel{DisplayName: types.StringValue("Platform")}, body(`{"id":"g1"}`, `{"id":"g2"}`), "", "2 SCIM groups match display_name Platform"},
+		{"no match", scimGroupDataModel{DisplayName: types.StringValue("Platform")}, body(), "", "no SCIM group matches display_name Platform"},
+		{"two keys", scimGroupDataModel{DisplayName: types.StringValue("a"), ExternalID: types.StringValue("b")}, body(), "", "set exactly one of"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var filter string
+			c := lookupClient(t, func(w http.ResponseWriter, r *http.Request) {
+				filter = r.URL.Query().Get("filter")
+				fmt.Fprint(w, tc.body)
+			})
+			state, d := readSCIMDataSource(t, &scimGroupDataSource{configuredDataSource{client: c, enterpriseSlug: "acme"}}, tc.model)
+			if tc.wantErr != "" {
+				if !d.HasError() {
+					t.Fatalf("read succeeded, want error %q", tc.wantErr)
+				}
+				if !strings.Contains(d.Errors()[0].Detail(), tc.wantErr) {
+					t.Fatalf("diagnostics %q do not mention %q", d.Errors()[0].Detail(), tc.wantErr)
+				}
+				return
+			}
+			if d.HasError() {
+				t.Fatalf("read failed: %s", d)
+			}
+			if filter == "" {
+				t.Fatal("name lookup must send a filter")
+			}
+			var model scimGroupDataModel
+			if d := state.Get(context.Background(), &model); d.HasError() {
+				t.Fatal(d)
+			}
+			if model.SCIMGroupID.ValueString() != tc.want || model.ID.ValueString() != "acme:"+tc.want {
+				t.Fatalf("resolved %q / %q, want %q", model.SCIMGroupID, model.ID, tc.want)
+			}
+		})
+	}
+}
+
 func TestSCIMGroupPreservesNullOptionals(t *testing.T) {
 	c := lookupClient(t, scimJSONHandler(t, `{"id":"grp-9f8b"}`))
-	state, ok := readSCIMDataSource(t, &scimGroupDataSource{configuredDataSource{client: c, enterpriseSlug: "acme"}}, scimGroupDataModel{SCIMGroupID: types.StringValue("grp-9f8b")})
-	if !ok {
+	state, d := readSCIMDataSource(t, &scimGroupDataSource{configuredDataSource{client: c, enterpriseSlug: "acme"}}, scimGroupDataModel{SCIMGroupID: types.StringValue("grp-9f8b")})
+	if d.HasError() {
 		t.Fatal("read failed")
 	}
 	var model scimGroupDataModel
@@ -65,15 +117,15 @@ func TestSCIMGroupPreservesNullOptionals(t *testing.T) {
 	if !model.ExternalID.IsNull() || !model.DisplayName.IsNull() {
 		t.Fatalf("missing optional properties must stay null: %v %v", model.ExternalID, model.DisplayName)
 	}
-	if model.ID.ValueString() != "acme/grp-9f8b" {
+	if model.ID.ValueString() != "acme:grp-9f8b" {
 		t.Fatalf("unexpected composite id %q", model.ID.ValueString())
 	}
 }
 
 func TestSCIMUserPreservesExplicitInactive(t *testing.T) {
 	c := lookupClient(t, scimJSONHandler(t, `{"id":"usr-4e5d","active":false}`))
-	state, ok := readSCIMDataSource(t, &scimUserDataSource{configuredDataSource{client: c, enterpriseSlug: "acme"}}, scimUserDataModel{SCIMUserID: types.StringValue("usr-4e5d")})
-	if !ok {
+	state, d := readSCIMDataSource(t, &scimUserDataSource{configuredDataSource{client: c, enterpriseSlug: "acme"}}, scimUserDataModel{SCIMUserID: types.StringValue("usr-4e5d")})
+	if d.HasError() {
 		t.Fatal("read failed")
 	}
 	var model scimUserDataModel
@@ -101,8 +153,7 @@ func TestSCIMReadErrorsAreNotReportedAsMissingData(t *testing.T) {
 			} else {
 				ds, model = &scimGroupDataSource{configuredDataSource{client: c, enterpriseSlug: "acme"}}, scimGroupDataModel{SCIMGroupID: types.StringValue("grp-9f8b")}
 			}
-			_, ok := readSCIMDataSource(t, ds, model)
-			if ok {
+			if _, d := readSCIMDataSource(t, ds, model); !d.HasError() {
 				t.Fatal("permission failures must not be reported as data")
 			}
 		})
@@ -116,8 +167,8 @@ func TestSCIMListsPreserveEmptyAndEscapedFilterIdentity(t *testing.T) {
 		received = r.URL.Query().Get("filter")
 		fmt.Fprint(w, `{"schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],"totalResults":0,"startIndex":1,"itemsPerPage":0,"Resources":[]}`)
 	})
-	state, ok := readSCIMDataSource(t, &scimGroupsDataSource{configuredDataSource{client: c, enterpriseSlug: "acme"}}, scimGroupsDataModel{Filter: types.StringValue(filter), Groups: types.ListNull(types.ObjectType{AttrTypes: scimGroupTypes})})
-	if !ok {
+	state, d := readSCIMDataSource(t, &scimGroupsDataSource{configuredDataSource{client: c, enterpriseSlug: "acme"}}, scimGroupsDataModel{Filter: types.StringValue(filter), Groups: types.ListNull(types.ObjectType{AttrTypes: scimGroupTypes})})
+	if d.HasError() {
 		t.Fatal("read failed")
 	}
 	if received != filter {
@@ -130,7 +181,7 @@ func TestSCIMListsPreserveEmptyAndEscapedFilterIdentity(t *testing.T) {
 	if model.Groups.IsNull() || len(model.Groups.Elements()) != 0 {
 		t.Fatalf("empty matches must be an empty list: %v", model.Groups)
 	}
-	want := "acme/groups?filter=" + url.QueryEscape(filter)
+	want := "acme:groups?filter=" + url.QueryEscape(filter)
 	if model.ID.ValueString() != want {
 		t.Fatalf("query id %q, want %q", model.ID.ValueString(), want)
 	}
@@ -151,8 +202,8 @@ func TestSCIMEnterpriseInheritsAndOverrides(t *testing.T) {
 				fields = strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 				fmt.Fprint(w, `{"id":"grp-9f8b"}`)
 			})
-			state, ok := readSCIMDataSource(t, &scimGroupDataSource{configuredDataSource{client: c, enterpriseSlug: "acme"}}, scimGroupDataModel{Enterprise: tc.configured, SCIMGroupID: types.StringValue("grp-9f8b")})
-			if !ok {
+			state, d := readSCIMDataSource(t, &scimGroupDataSource{configuredDataSource{client: c, enterpriseSlug: "acme"}}, scimGroupDataModel{Enterprise: tc.configured, SCIMGroupID: types.StringValue("grp-9f8b")})
+			if d.HasError() {
 				t.Fatal("read failed")
 			}
 			if !strings.Contains(strings.Join(fields, "/"), "/enterprises/"+tc.want+"/") {
@@ -162,7 +213,7 @@ func TestSCIMEnterpriseInheritsAndOverrides(t *testing.T) {
 			if d := state.Get(context.Background(), &model); d.HasError() {
 				t.Fatal(d)
 			}
-			if model.Enterprise.ValueString() != tc.want || !strings.HasPrefix(model.ID.ValueString(), tc.want+"/") {
+			if model.Enterprise.ValueString() != tc.want || !strings.HasPrefix(model.ID.ValueString(), tc.want+idSeparator) {
 				t.Fatalf("unexpected scope %q / %q", model.Enterprise, model.ID)
 			}
 		})

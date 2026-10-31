@@ -587,12 +587,12 @@ organization_slugs=["org-one"]
 }
 
 func TestImportValidation(t *testing.T) {
-	for _, id := range []string{"/42", "acme/0", "acme/-1", "acme/01", "acme/9223372036854775808", "acme/ent:platform", "acme/42/extra"} {
+	for _, id := range []string{":42", "acme:0", "acme:-1", "acme:01", "acme:9223372036854775808", "acme:ent:platform", "acme:42:extra", "acme/42"} {
 		if _, err := parseImportID(id, 2); err == nil {
 			t.Errorf("accepted %q", id)
 		}
 	}
-	for _, id := range []string{"acme/42/", "acme/42/user/path", "acme/42/.."} {
+	for _, id := range []string{"acme:42:", "acme:42:user:path", "acme:42:..", "acme/42/octocat"} {
 		if _, err := parseImportID(id, 3); err == nil {
 			t.Errorf("accepted %q", id)
 		}

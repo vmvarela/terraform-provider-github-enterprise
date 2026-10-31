@@ -32,7 +32,7 @@ func teamTestState(t *testing.T, r *teamResource, imported bool) tfsdk.State {
 	ctx := context.Background()
 	var response resource.SchemaResponse
 	r.Schema(ctx, resource.SchemaRequest{}, &response)
-	model := teamModel{ID: types.StringValue("acme/42"), Enterprise: types.StringValue("acme"), TeamID: types.Int64Value(42)}
+	model := teamModel{ID: types.StringValue("acme:42"), Enterprise: types.StringValue("acme"), TeamID: types.Int64Value(42)}
 	if !imported {
 		model.Slug = types.StringValue("ent:old")
 		model.Name = types.StringValue("Platform")

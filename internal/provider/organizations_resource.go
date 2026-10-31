@@ -38,7 +38,7 @@ func (r *organizationsResource) Metadata(_ context.Context, _ resource.MetadataR
 }
 func (r *organizationsResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Authoritatively manages all organization assignments for a team in selected mode. Omitted organizations are removed. Use only one instance per team; import existing assignments first. Creation and updates require GitHub to return organization_selection_type so selected mode can be verified.", Attributes: map[string]schema.Attribute{
-		"id":                 schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug/team_id.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+		"id":                 schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug:team_id.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		"enterprise_slug":    schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Enterprise account slug. Defaults to the provider-level enterprise_slug.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"team_id":            schema.Int64Attribute{Required: true, MarkdownDescription: "Numeric team ID.", Validators: []validator.Int64{positiveID{}}, PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()}},
 		"organization_slugs": schema.SetAttribute{Required: true, ElementType: types.StringType, MarkdownDescription: "Complete set of lowercase organization slugs. An empty set removes all assignments.", Validators: []validator.Set{organizationSetRule{}}},
@@ -157,7 +157,7 @@ func (r *organizationsResource) Create(ctx context.Context, req resource.CreateR
 		resp.Diagnostics.AddError("Existing organization assignments", "Import this team's assignments before managing them. Creation will not overwrite existing assignments.")
 		return
 	}
-	data.ID = types.StringValue(data.Enterprise.ValueString() + "/" + strconv.FormatInt(data.TeamID.ValueInt64(), 10))
+	data.ID = types.StringValue(joinID(data.Enterprise.ValueString(), strconv.FormatInt(data.TeamID.ValueInt64(), 10)))
 	if err := r.reconcile(ctx, data, nil); err != nil {
 		// An API request may have partially applied. Preserve the relation and
 		// observed assignments so the next plan can recover without re-import.

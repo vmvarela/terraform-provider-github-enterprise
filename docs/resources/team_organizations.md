@@ -26,14 +26,14 @@ resource "github_enterprise_team_organizations" "example" {
 | Attribute | Type | Requirement | Description |
 | --- | --- | --- | --- |
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
-| `id` | `String` | Read-only | enterprise_slug/team_id. |
+| `id` | `String` | Read-only | enterprise_slug:team_id. |
 | `organization_slugs` | `Set of String` | Required | Complete set of lowercase organization slugs. An empty set removes all assignments. |
 | `team_id` | `Number` | Required | Numeric team ID. |
 
 ## Import
 
 ```sh
-terraform import github_enterprise_team_organizations.example my-enterprise/123456
+terraform import github_enterprise_team_organizations.example my-enterprise:123456
 ```
 
 See the [provider guide](https://github.com/vmvarela/terraform-provider-github-enterprise#authentication) for authentication, ownership and compatibility requirements.

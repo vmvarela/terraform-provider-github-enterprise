@@ -22,11 +22,11 @@ Terraform infers the official provider from the type name.
 
 | Resource | Ownership | Import ID |
 | --- | --- | --- |
-| `github_enterprise_team` | One enterprise team | `enterprise_slug/team_id` |
-| `github_enterprise_team_membership` | One direct member; other members are untouched | `enterprise_slug/team_id/username` |
-| `github_enterprise_team_organizations` | The complete organization assignment set | `enterprise_slug/team_id` |
-| `github_enterprise_cost_center` (from v0.2.0) | One cost center; destroy archives it | `enterprise_slug/cost_center_id` |
-| `github_enterprise_cost_center_resources` (from v0.2.0) | The complete cost-center assignment set across all supported categories | `enterprise_slug/cost_center_id` |
+| `github_enterprise_team` | One enterprise team | `enterprise_slug:team_id` |
+| `github_enterprise_team_membership` | One direct member; other members are untouched | `enterprise_slug:team_id:username` |
+| `github_enterprise_team_organizations` | The complete organization assignment set | `enterprise_slug:team_id` |
+| `github_enterprise_cost_center` (from v0.2.0) | One cost center; destroy archives it | `enterprise_slug:cost_center_id` |
+| `github_enterprise_cost_center_resources` (from v0.2.0) | The complete cost-center assignment set across all supported categories | `enterprise_slug:cost_center_id` |
 
 Read-only data sources are `github_enterprise_team`, `github_enterprise_teams`,
 `github_enterprise_team_membership`, `github_enterprise_team_organizations`,
@@ -176,15 +176,17 @@ provider. Never apply two bindings that manage the same remote object.
 
 ## Deprecation and removal
 
-A resource or data source is marked deprecated for at least one published minor
-release before it is removed, and the removal version is announced in the release
-notes. Before 1.0, removal may occur in a later minor release; after 1.0, removal
-requires a major version. Existing configurations keep working during deprecation.
+This provider fills gaps in the official `github` provider, and both are meant to
+be installed side by side. Because both declare `github_*` type names, a type that
+exists in both is ambiguous and breaks the pair. So when the official provider
+releases an equivalent resource or data source, this provider removes its own in
+the next minor release rather than keeping a deprecated copy.
 
-When the official provider gains an equivalent capability, the provider publishes a
-migration path that names the minimum official version, compares schemas and
-ownership, and explains how to import without deleting remote objects. Do not
-assume `state replace-provider` is sufficient across different schemas.
+The release notes for that version name the minimum official version, compare
+schemas and ownership, and give the import that moves state without deleting
+remote objects. Do not assume `state replace-provider` is sufficient across
+different schemas. Before 1.0, removal happens in a minor release; after 1.0 it
+requires a major version.
 
 Within v0.1.x the provider preserves resource names, attribute meanings, defaults,
 ownership and import formats. Any necessary incompatible correction requires a

@@ -39,7 +39,7 @@ func (r *teamResource) Metadata(_ context.Context, _ resource.MetadataRequest, r
 }
 func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Manages a GitHub Enterprise Cloud team. Numeric identity is preserved across renames. Refresh and import fail without changing state if GitHub omits organization_selection_type; creation defaults are never treated as observed API values.", Attributes: map[string]schema.Attribute{
-		"id":                          schema.StringAttribute{Computed: true, MarkdownDescription: "Stable identity: enterprise_slug/team_id.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+		"id":                          schema.StringAttribute{Computed: true, MarkdownDescription: "Stable identity: enterprise_slug:team_id.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		"enterprise_slug":             schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Enterprise account slug. Defaults to the provider-level enterprise_slug.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"team_id":                     schema.Int64Attribute{Computed: true, MarkdownDescription: "Stable numeric team ID. Use this in membership and organization assignment resources.", PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
 		"slug":                        schema.StringAttribute{Computed: true, MarkdownDescription: "GitHub-generated team slug; can change when the team is renamed."},
@@ -52,7 +52,7 @@ func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 
 func (m *teamModel) identity(t *github.EnterpriseTeam) {
 	m.TeamID = types.Int64Value(t.ID)
-	m.ID = types.StringValue(m.Enterprise.ValueString() + "/" + strconv.FormatInt(t.ID, 10))
+	m.ID = types.StringValue(joinID(m.Enterprise.ValueString(), strconv.FormatInt(t.ID, 10)))
 	m.Slug = types.StringValue(t.Slug)
 }
 func (m *teamModel) refresh(t *github.EnterpriseTeam) {

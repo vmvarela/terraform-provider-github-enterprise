@@ -157,11 +157,11 @@ data "github_enterprise_team" "linked" {
 	tfresource.UnitTest(t, tfresource.TestCase{ProtoV6ProviderFactories: factories, CheckDestroy: checkNoWrites, Steps: []tfresource.TestStep{
 		{Config: cfg, Check: tfresource.ComposeTestCheckFunc(
 			checkNoWrites,
-			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_group.test", "id", "acme/grp-9f8b"),
+			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_group.test", "id", "acme:grp-9f8b"),
 			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_group.test", "scim_group_id", "grp-9f8b"),
 			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_group.test", "external_id", "idp-group-1"),
 			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_group.test", "display_name", "Platform"),
-			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_groups.pages", "id", "acme/groups"),
+			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_groups.pages", "id", "acme:groups"),
 			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_groups.pages", "groups.#", "3"),
 			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_groups.pages", "groups.0.scim_group_id", "grp-9f8b"),
 			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_groups.pages", "groups.2.scim_group_id", "grp-5b4c"),
@@ -169,7 +169,7 @@ data "github_enterprise_team" "linked" {
 			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_groups.filtered", "groups.#", "1"),
 			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_groups.filtered", "groups.0.scim_group_id", "grp-7c6d"),
 			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_groups.empty", "groups.#", "0"),
-			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_user.test", "id", "acme/usr-4e5d"),
+			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_user.test", "id", "acme:usr-4e5d"),
 			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_user.test", "scim_user_id", "usr-4e5d"),
 			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_user.test", "active", "false"),
 			tfresource.TestCheckResourceAttr("data.github_enterprise_scim_user.test", "external_id", "idp-user-1"),

@@ -29,7 +29,7 @@ resource "github_enterprise_team" "example" {
 | `description` | `String` | Optional | Team description. Removing it clears the remote description. |
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `group_id` | `String` | Optional | IdP group ID, taken from the scim_group or scim_groups data sources. An empty value unlinks the group by sending an explicit JSON null. Do not manage direct memberships for an IdP-linked team. |
-| `id` | `String` | Read-only | Stable identity: enterprise_slug/team_id. |
+| `id` | `String` | Read-only | Stable identity: enterprise_slug:team_id. |
 | `name` | `String` | Required | Team name. |
 | `organization_selection_type` | `String` | Optional | disabled, selected, or all. Use selected with the team_organizations resource. Changing this may revoke organization access. |
 | `slug` | `String` | Read-only | GitHub-generated team slug; can change when the team is renamed. |
@@ -38,7 +38,7 @@ resource "github_enterprise_team" "example" {
 ## Import
 
 ```sh
-terraform import github_enterprise_team.example my-enterprise/123456
+terraform import github_enterprise_team.example my-enterprise:123456
 ```
 
 See the [provider guide](https://github.com/vmvarela/terraform-provider-github-enterprise#authentication) for authentication, ownership and compatibility requirements.

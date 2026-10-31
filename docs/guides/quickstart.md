@@ -124,13 +124,13 @@ that returns 404 fails the plan instead of reporting an empty object.
 ## Import instead of recreating
 
 ```sh
-terraform import github_enterprise_team.platform my-enterprise/123456
-terraform import github_enterprise_team_membership.ana my-enterprise/123456/ana
-terraform import github_enterprise_team_organizations.platform my-enterprise/123456
-terraform import github_enterprise_cost_center.infra my-enterprise/<cost-center-id>
+terraform import github_enterprise_team.platform my-enterprise:123456
+terraform import github_enterprise_team_membership.ana my-enterprise:123456:ana
+terraform import github_enterprise_team_organizations.platform my-enterprise:123456
+terraform import github_enterprise_cost_center.infra my-enterprise:<cost-center-id>
 ```
 
-Every ID is `<enterprise_slug>/<object>`. Import with configuration that matches the
+Every ID is `<enterprise_slug>:<object>`, the same separator the official `github` provider uses, so import strings transfer between them. Import with configuration that matches the
 existing object, then review the plan before applying.
 
 ## When something fails

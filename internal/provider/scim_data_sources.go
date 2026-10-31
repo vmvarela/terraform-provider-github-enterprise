@@ -2,7 +2,9 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/google/go-github/v93/github"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -42,13 +44,24 @@ func scimUserObject(u *github.SCIMEnterpriseUserAttributes) (types.Object, diag.
 	return types.ObjectValue(scimUserTypes, map[string]attr.Value{"scim_user_id": types.StringValue(strOrEmpty(u.ID)), "external_id": nullIfEmpty(u.ExternalID), "display_name": nullIfEmpty(u.DisplayName), "user_name": nullIfEmpty(u.UserName), "active": types.BoolValue(u.Active)})
 }
 
+// scimQuote escapes a value for a SCIM filter, where double quotes delimit the
+// string and backslash escapes.
+func scimQuote(v string) string {
+	return `"` + strings.ReplaceAll(strings.ReplaceAll(v, `\`, `\\`), `"`, `\"`) + `"`
+}
+
+// scimLookupFilter builds the filter for a single-attribute lookup.
+func scimLookupFilter(attribute, value string) string {
+	return attribute + " eq " + scimQuote(value)
+}
+
 // scimListID is deterministic and includes the escaped filter so distinct
 // queries do not share an identity.
 func scimListID(enterprise, kind, filter string) string {
 	if filter == "" {
-		return enterprise + "/" + kind
+		return joinID(enterprise, kind)
 	}
-	return enterprise + "/" + kind + "?filter=" + url.QueryEscape(filter)
+	return joinID(enterprise, kind) + "?filter=" + url.QueryEscape(filter)
 }
 
 type scimGroupDataSource struct{ configuredDataSource }
@@ -65,10 +78,12 @@ func (d *scimGroupDataSource) Metadata(_ context.Context, _ datasource.MetadataR
 }
 func (d *scimGroupDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	a := scimGroupAttributes()
-	a["scim_group_id"] = schema.StringAttribute{Required: true, MarkdownDescription: "Opaque, case-sensitive SCIM group ID from GitHub. Use this raw value, not the data source's Terraform id, as a team's group_id.", Validators: []validator.String{scimIDRule()}}
+	a["scim_group_id"] = schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Opaque, case-sensitive SCIM group ID from GitHub. Use this raw value, not the data source's Terraform id, as a team's group_id. Set exactly one of scim_group_id, display_name or external_id.", Validators: []validator.String{scimIDRule()}}
+	a["display_name"] = schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "SCIM displayName to look the group up by. Fails when more than one group matches, so an ambiguous IdP name never picks a group silently.", Validators: []validator.String{nameRule()}}
+	a["external_id"] = schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "IdP externalId to look the group up by. Fails when more than one group matches."}
 	a["enterprise_slug"] = enterpriseDataAttribute()
-	a["id"] = schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug/raw SCIM group ID."}
-	resp.Schema = schema.Schema{MarkdownDescription: scimDescription, Attributes: a}
+	a["id"] = schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug:raw SCIM group ID."}
+	resp.Schema = schema.Schema{MarkdownDescription: scimDescription + " Look the group up by scim_group_id, display_name or external_id; a name lookup fails unless it matches exactly one group.", Attributes: a}
 }
 func (d *scimGroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var data scimGroupDataModel
@@ -82,14 +97,51 @@ func (d *scimGroupDataSource) Read(ctx context.Context, req datasource.ReadReque
 		return
 	}
 	data.Enterprise = enterprise
-	g, err := d.client.SCIMGroup(ctx, enterprise.ValueString(), data.SCIMGroupID.ValueString())
+	g, err := d.lookupGroup(ctx, enterprise.ValueString(), &data)
 	if err != nil {
 		resp.Diagnostics.AddError("Read SCIM group", err.Error())
 		return
 	}
-	data.ID = types.StringValue(enterprise.ValueString() + "/" + strOrEmpty(g.ID))
+	data.SCIMGroupID = types.StringValue(strOrEmpty(g.ID))
+	data.ID = types.StringValue(joinID(enterprise.ValueString(), strOrEmpty(g.ID)))
 	data.ExternalID, data.DisplayName = nullIfEmpty(g.ExternalID), nullIfEmpty(g.DisplayName)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+// lookupGroup resolves the single lookup key the configuration set.
+func (d *scimGroupDataSource) lookupGroup(ctx context.Context, enterprise string, data *scimGroupDataModel) (*github.SCIMEnterpriseGroupAttributes, error) {
+	keys := []string{}
+	if !data.SCIMGroupID.IsNull() && data.SCIMGroupID.ValueString() != "" {
+		keys = append(keys, "scim_group_id")
+	}
+	if !data.DisplayName.IsNull() && data.DisplayName.ValueString() != "" {
+		keys = append(keys, "display_name")
+	}
+	if !data.ExternalID.IsNull() && data.ExternalID.ValueString() != "" {
+		keys = append(keys, "external_id")
+	}
+	if len(keys) != 1 {
+		return nil, fmt.Errorf("set exactly one of scim_group_id, display_name or external_id; got %d", len(keys))
+	}
+	if keys[0] == "scim_group_id" {
+		return d.client.SCIMGroup(ctx, enterprise, data.SCIMGroupID.ValueString())
+	}
+	attribute, value := "displayName", data.DisplayName.ValueString()
+	if keys[0] == "external_id" {
+		attribute, value = "externalId", data.ExternalID.ValueString()
+	}
+	groups, err := d.client.SCIMGroups(ctx, enterprise, scimLookupFilter(attribute, value))
+	if err != nil {
+		return nil, err
+	}
+	switch len(groups) {
+	case 0:
+		return nil, fmt.Errorf("no SCIM group matches %s %s", keys[0], value)
+	case 1:
+		return groups[0], nil
+	default:
+		return nil, fmt.Errorf("%d SCIM groups match %s %s; look the group up by scim_group_id instead", len(groups), keys[0], value)
+	}
 }
 
 type scimGroupsDataSource struct{ configuredDataSource }
@@ -105,7 +157,7 @@ func (d *scimGroupsDataSource) Metadata(_ context.Context, _ datasource.Metadata
 }
 func (d *scimGroupsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: scimDescription + " Lists follow SCIM startIndex/count pagination; an empty result is an empty list.", Attributes: map[string]schema.Attribute{
-		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "Deterministic query identity: enterprise_slug/groups, plus the escaped filter when set."},
+		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "Deterministic query identity: enterprise_slug:groups, plus the escaped filter when set."},
 		"enterprise_slug": enterpriseDataAttribute(),
 		"filter":          schema.StringAttribute{Optional: true, MarkdownDescription: "One SCIM filter passed to GitHub unchanged. Supports group externalId, id and displayName; multiple filters are not supported."},
 		"groups":          schema.ListNestedAttribute{Computed: true, MarkdownDescription: "SCIM groups in API order. Each entry has the raw scim_group_id (for team group_id), IdP external_id and display_name, null when empty.", NestedObject: schema.NestedAttributeObject{Attributes: scimGroupAttributes()}},
@@ -163,7 +215,7 @@ func (d *scimUserDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 	a := scimUserAttributes()
 	a["scim_user_id"] = schema.StringAttribute{Required: true, MarkdownDescription: "Opaque, case-sensitive SCIM user ID from GitHub.", Validators: []validator.String{scimIDRule()}}
 	a["enterprise_slug"] = enterpriseDataAttribute()
-	a["id"] = schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug/raw SCIM user ID."}
+	a["id"] = schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug:raw SCIM user ID."}
 	resp.Schema = schema.Schema{MarkdownDescription: scimDescription, Attributes: a}
 }
 func (d *scimUserDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -183,7 +235,7 @@ func (d *scimUserDataSource) Read(ctx context.Context, req datasource.ReadReques
 		resp.Diagnostics.AddError("Read SCIM user", err.Error())
 		return
 	}
-	data.ID = types.StringValue(enterprise.ValueString() + "/" + strOrEmpty(u.ID))
+	data.ID = types.StringValue(joinID(enterprise.ValueString(), strOrEmpty(u.ID)))
 	data.ExternalID, data.DisplayName, data.UserName, data.Active = nullIfEmpty(u.ExternalID), nullIfEmpty(u.DisplayName), nullIfEmpty(u.UserName), types.BoolValue(u.Active)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -201,7 +253,7 @@ func (d *scimUsersDataSource) Metadata(_ context.Context, _ datasource.MetadataR
 }
 func (d *scimUsersDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: scimDescription + " Lists follow SCIM startIndex/count pagination and include soft-deprovisioned users. An empty result is an empty list.", Attributes: map[string]schema.Attribute{
-		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "Deterministic query identity: enterprise_slug/users, plus the escaped filter when set."},
+		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "Deterministic query identity: enterprise_slug:users, plus the escaped filter when set."},
 		"enterprise_slug": enterpriseDataAttribute(),
 		"filter":          schema.StringAttribute{Optional: true, MarkdownDescription: "One SCIM filter passed to GitHub unchanged. Supports user externalId, id, displayName and userName; active filters and multiple filters are not supported."},
 		"users":           schema.ListNestedAttribute{Computed: true, MarkdownDescription: "SCIM users in API order. Each entry has the raw scim_user_id, IdP external_id, display_name, user_name (not necessarily the GitHub login) and active flag; empty strings read as null. Explicit active=false is preserved.", NestedObject: schema.NestedAttributeObject{Attributes: scimUserAttributes()}},

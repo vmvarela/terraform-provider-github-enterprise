@@ -27,14 +27,14 @@ resource "github_enterprise_cost_center" "example" {
 | `azure_subscription` | `String` | Read-only | Azure subscription ID linked by GitHub, or null. Read-only. |
 | `cost_center_id` | `String` | Read-only | Opaque cost center ID assigned by GitHub. |
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. Changing it replaces the resource. |
-| `id` | `String` | Read-only | Stable identity: enterprise_slug/cost_center_id. |
+| `id` | `String` | Read-only | Stable identity: enterprise_slug:cost_center_id. |
 | `name` | `String` | Required | Cost center name. |
 | `state` | `String` | Read-only | State reported by GitHub, or null when GitHub omits it. |
 
 ## Import
 
 ```sh
-terraform import github_enterprise_cost_center.example my-enterprise/COST_CENTER_ID
+terraform import github_enterprise_cost_center.example my-enterprise:COST_CENTER_ID
 ```
 
 See the [provider guide](https://github.com/vmvarela/terraform-provider-github-enterprise#authentication) for authentication, ownership and compatibility requirements.

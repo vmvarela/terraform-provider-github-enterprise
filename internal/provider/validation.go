@@ -72,10 +72,16 @@ func (v positiveID) ValidateInt64(ctx context.Context, req validator.Int64Reques
 	}
 }
 
+// idSeparator matches the official provider, so import strings transfer between
+// the two providers without translation.
+const idSeparator = ":"
+
+func joinID(parts ...string) string { return strings.Join(parts, idSeparator) }
+
 func parseImportID(id string, count int) ([]string, error) {
-	parts := strings.Split(id, "/")
+	parts := strings.Split(id, idSeparator)
 	if len(parts) != count {
-		return nil, fmt.Errorf("expected enterprise_slug/team_id%s", map[bool]string{true: "/username", false: ""}[count == 3])
+		return nil, fmt.Errorf("expected enterprise_slug:team_id%s", map[bool]string{true: ":username", false: ""}[count == 3])
 	}
 	if !regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`).MatchString(parts[0]) {
 		return nil, fmt.Errorf("invalid enterprise slug")

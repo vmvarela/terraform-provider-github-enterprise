@@ -34,7 +34,7 @@ func (r *membershipResource) Metadata(_ context.Context, _ resource.MetadataRequ
 }
 func (r *membershipResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Manages one direct team membership. Other members are unaffected. Do not use with IdP-managed team memberships.", Attributes: map[string]schema.Attribute{
-		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug/team_id/username.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug:team_id:username.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 		"enterprise_slug": schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Enterprise account slug. Defaults to the provider-level enterprise_slug.", Validators: []validator.String{enterpriseRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 		"team_id":         schema.Int64Attribute{Required: true, MarkdownDescription: "Numeric team ID. Remains stable when a team is renamed.", Validators: []validator.Int64{positiveID{}}, PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()}},
 		"username":        schema.StringAttribute{Required: true, MarkdownDescription: "GitHub username.", Validators: []validator.String{usernameRule()}, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
@@ -55,7 +55,7 @@ func (r *membershipResource) Create(ctx context.Context, req resource.CreateRequ
 		resp.Diagnostics.AddError("Add enterprise team member", err.Error())
 		return
 	}
-	data.ID = types.StringValue(data.Enterprise.ValueString() + "/" + strconv.FormatInt(data.TeamID.ValueInt64(), 10) + "/" + data.Username.ValueString())
+	data.ID = types.StringValue(joinID(data.Enterprise.ValueString(), strconv.FormatInt(data.TeamID.ValueInt64(), 10), data.Username.ValueString()))
 	data.UserID = types.Int64Value(u.GetID())
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

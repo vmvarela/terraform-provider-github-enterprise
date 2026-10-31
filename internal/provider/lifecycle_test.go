@@ -32,7 +32,7 @@ func TestPartialOrganizationUpdateRetainsObservedState(t *testing.T) {
 	if ds.HasError() {
 		t.Fatal(ds)
 	}
-	old := organizationsModel{ID: types.StringValue("acme/42"), Enterprise: types.StringValue("acme"), TeamID: types.Int64Value(42), Organizations: oldSet}
+	old := organizationsModel{ID: types.StringValue("acme:42"), Enterprise: types.StringValue("acme"), TeamID: types.Int64Value(42), Organizations: oldSet}
 	planned := old
 	planned.Organizations = newSet
 	state := tfsdk.State{Schema: schemaResp.Schema}
@@ -79,7 +79,7 @@ func TestForbiddenTeamReadKeepsState(t *testing.T) {
 	r := &teamResource{configuredResource{client: c}}
 	var schemaResp resource.SchemaResponse
 	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
-	data := teamModel{ID: types.StringValue("acme/42"), Enterprise: types.StringValue("acme"), TeamID: types.Int64Value(42), Slug: types.StringValue("ent:platform"), Name: types.StringValue("Platform"), Description: types.StringValue(""), GroupID: types.StringValue(""), Selection: types.StringValue("disabled")}
+	data := teamModel{ID: types.StringValue("acme:42"), Enterprise: types.StringValue("acme"), TeamID: types.Int64Value(42), Slug: types.StringValue("ent:platform"), Name: types.StringValue("Platform"), Description: types.StringValue(""), GroupID: types.StringValue(""), Selection: types.StringValue("disabled")}
 	state := tfsdk.State{Schema: schemaResp.Schema}
 	if ds := state.Set(ctx, &data); ds.HasError() {
 		t.Fatal(ds)
@@ -101,7 +101,7 @@ func TestMissingTeamReadRemovesState(t *testing.T) {
 	r := &teamResource{configuredResource{client: c}}
 	var schemaResp resource.SchemaResponse
 	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
-	data := teamModel{ID: types.StringValue("acme/42"), Enterprise: types.StringValue("acme"), TeamID: types.Int64Value(42), Slug: types.StringValue("ent:platform"), Name: types.StringValue("Platform"), Description: types.StringValue(""), GroupID: types.StringValue(""), Selection: types.StringValue("disabled")}
+	data := teamModel{ID: types.StringValue("acme:42"), Enterprise: types.StringValue("acme"), TeamID: types.Int64Value(42), Slug: types.StringValue("ent:platform"), Name: types.StringValue("Platform"), Description: types.StringValue(""), GroupID: types.StringValue(""), Selection: types.StringValue("disabled")}
 	state := tfsdk.State{Schema: schemaResp.Schema}
 	if ds := state.Set(ctx, &data); ds.HasError() {
 		t.Fatal(ds)

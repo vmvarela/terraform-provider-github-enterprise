@@ -38,7 +38,7 @@ func (d *teamDataSource) Metadata(_ context.Context, _ datasource.MetadataReques
 func (d *teamDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	a := teamDataAttributes()
 	a["enterprise_slug"] = enterpriseDataAttribute()
-	a["id"] = schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug/team_id."}
+	a["id"] = schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug:team_id."}
 	a["slug"] = schema.StringAttribute{Required: true, MarkdownDescription: "Team slug returned by GitHub, including ent: when present.", Validators: []validator.String{slugRule()}}
 	resp.Schema = schema.Schema{MarkdownDescription: "Looks up an enterprise team by slug.", Attributes: a}
 }
@@ -133,7 +133,7 @@ func (d *membershipDataSource) Metadata(_ context.Context, _ datasource.Metadata
 }
 func (d *membershipDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Looks up a direct or IdP-managed team membership. Missing memberships produce an error; authorization errors are never reported as non-membership.", Attributes: map[string]schema.Attribute{
-		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug/team_id/username."},
+		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug:team_id:username."},
 		"enterprise_slug": enterpriseDataAttribute(), "team_id": teamIDDataAttribute(),
 		"username":  schema.StringAttribute{Required: true, MarkdownDescription: "GitHub username.", Validators: []validator.String{usernameRule()}},
 		"user_id":   schema.Int64Attribute{Computed: true, MarkdownDescription: "Numeric user ID."},
@@ -157,7 +157,7 @@ func (d *membershipDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		resp.Diagnostics.AddError("Read enterprise team membership", err.Error())
 		return
 	}
-	data.ID = types.StringValue(data.Enterprise.ValueString() + "/" + strconv.FormatInt(data.TeamID.ValueInt64(), 10) + "/" + data.Username.ValueString())
+	data.ID = types.StringValue(joinID(data.Enterprise.ValueString(), strconv.FormatInt(data.TeamID.ValueInt64(), 10), data.Username.ValueString()))
 	data.UserID = types.Int64Value(u.GetID())
 	data.Member = types.BoolValue(true)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -170,7 +170,7 @@ func (d *organizationsDataSource) Metadata(_ context.Context, _ datasource.Metad
 }
 func (d *organizationsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{MarkdownDescription: "Lists all organization assignments for an enterprise team.", Attributes: map[string]schema.Attribute{
-		"id": schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug/team_id."}, "enterprise_slug": enterpriseDataAttribute(), "team_id": teamIDDataAttribute(),
+		"id": schema.StringAttribute{Computed: true, MarkdownDescription: "enterprise_slug:team_id."}, "enterprise_slug": enterpriseDataAttribute(), "team_id": teamIDDataAttribute(),
 		"organization_slugs": schema.SetAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Assigned organization slugs."},
 	}}
 }
@@ -194,6 +194,6 @@ func (d *organizationsDataSource) Read(ctx context.Context, req datasource.ReadR
 	values, ds := types.SetValueFrom(ctx, types.StringType, organizationNames(orgs))
 	resp.Diagnostics.Append(ds...)
 	data.Organizations = values
-	data.ID = types.StringValue(data.Enterprise.ValueString() + "/" + strconv.FormatInt(data.TeamID.ValueInt64(), 10))
+	data.ID = types.StringValue(joinID(data.Enterprise.ValueString(), strconv.FormatInt(data.TeamID.ValueInt64(), 10)))
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

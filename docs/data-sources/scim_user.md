@@ -28,7 +28,7 @@ data "github_enterprise_scim_user" "example" {
 | `display_name` | `String` | Read-only | SCIM displayName, or null when omitted. |
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `external_id` | `String` | Read-only | IdP externalId, or null when omitted. |
-| `id` | `String` | Read-only | enterprise_slug/raw SCIM user ID. |
+| `id` | `String` | Read-only | enterprise_slug:raw SCIM user ID. |
 | `scim_user_id` | `String` | Required | Opaque, case-sensitive SCIM user ID from GitHub. |
 | `user_name` | `String` | Read-only | SCIM userName, which is not necessarily the normalized GitHub login; null when omitted. |
 
