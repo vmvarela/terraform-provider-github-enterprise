@@ -73,6 +73,7 @@ Choose a resource by what it owns, not just by its name:
 | [`team_organizations`](docs/resources/team_organizations.md) | **All** organization assignments for a team in `selected` mode. Omitted organizations are removed. |
 | [`cost_center`](docs/resources/cost_center.md) | The name of one cost center, not its assignments. Destroy archives it and releases its assignments; there is no hard delete. |
 | [`cost_center_resources`](docs/resources/cost_center_resources.md) | **All** users, organizations, repositories and enterprise teams assigned to one cost center. Omitted categories are empty. |
+| [`budget`](docs/resources/budget.md) | One spending cap for a scope (enterprise, organization, repository, cost center, all users or one user). Destroying it removes the cap; spending already incurred stays billed. |
 
 **Import existing assignments before managing them. Destroying either assignment resource removes its entire current set, including additions made outside Terraform.** Use one binding per remote object, never overlapping bindings across providers or an IdP. Use the [data sources](docs/data-sources) to read existing objects without owning them.
 
