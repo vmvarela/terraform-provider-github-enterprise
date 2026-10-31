@@ -23,7 +23,7 @@ func TestBudgetListFollowsHasNextPage(t *testing.T) {
 		}
 		fmt.Fprint(w, `{"budgets":[{"id":"b1","budget_scope":"enterprise","budget_amount":10,"prevent_further_usage":true,"budget_alerting":{"will_alert":true,"alert_recipients":["u"]}}],"has_next_page":true}`)
 	})
-	got, err := c.Budgets(context.Background(), "e")
+	got, err := c.Budgets(context.Background(), "e", "", "")
 	if err != nil || len(got) != 2 || pages != 2 {
 		t.Fatalf("%+v %v pages=%d", got, err, pages)
 	}
@@ -35,7 +35,7 @@ func TestBudgetListFollowsHasNextPage(t *testing.T) {
 func TestBudgetListRejectsBadItems(t *testing.T) {
 	for _, body := range []string{`{"budgets":null}`, `{"budgets":[{"id":""}]}`, `{"budgets":[null]}`} {
 		c := testClient(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, body) })
-		if _, err := c.Budgets(context.Background(), "e"); err == nil {
+		if _, err := c.Budgets(context.Background(), "e", "", ""); err == nil {
 			t.Errorf("accepted %s", body)
 		}
 	}

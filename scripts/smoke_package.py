@@ -71,6 +71,7 @@ def main():
                 "github_enterprise_cost_center", "github_enterprise_cost_centers",
                 "github_enterprise_scim_group", "github_enterprise_scim_groups",
                 "github_enterprise_scim_user", "github_enterprise_scim_users",
+                "github_enterprise_budget", "github_enterprise_budgets",
             }
             if set(ours["resource_schemas"]) != expected_resources or set(ours["data_source_schemas"]) != expected_data:
                 raise ValueError("Installed package does not match the provider contract")

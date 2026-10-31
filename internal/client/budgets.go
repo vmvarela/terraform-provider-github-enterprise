@@ -95,10 +95,17 @@ func budgetPath(enterprise, id string) string {
 	return p
 }
 
-// Budgets lists every budget, following has_next_page until the server stops.
-func (c *Client) Budgets(ctx context.Context, enterprise string) ([]*Budget, error) {
+// Budgets lists budgets, following has_next_page until the server stops. An
+// empty scope or user leaves that filter out.
+func (c *Client) Budgets(ctx context.Context, enterprise, scope, user string) ([]*Budget, error) {
 	path := budgetPath(enterprise, "")
 	query := url.Values{"per_page": {strconv.Itoa(100)}}
+	if scope != "" {
+		query.Set("scope", scope)
+	}
+	if user != "" {
+		query.Set("user", user)
+	}
 	var all []*Budget
 	for page := 1; page <= maxPages; page++ {
 		query.Set("page", strconv.Itoa(page))
