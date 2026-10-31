@@ -35,7 +35,7 @@ resource "github_enterprise_budget" "ai_credits" {
   provider = github-enterprise
 
   budget_scope          = "user"
-  user                  = "octocat"
+  username              = "octocat"
   budget_type           = "BundlePricing"
   budget_product_sku    = "ai_credits"
   budget_amount         = 30
@@ -61,7 +61,7 @@ resource "github_enterprise_budget" "ai_credits" {
 | `expires_at` | `String` | Optional | Expiry date in YYYY-MM-DD format. Only supported for `user` scope. Changing it replaces the budget. |
 | `id` | `String` | Read-only | Stable identity: enterprise_slug:budget_id. |
 | `prevent_further_usage` | `Bool` | Required | Whether GitHub blocks additional spending once the budget is exceeded. Must be true for `user`, `multi_user_customer` and `multi_user_cost_center` scopes. |
-| `user` | `String` | Optional | GitHub login the budget applies to. Required when `budget_scope` is `user`. Changing it replaces the budget. |
+| `username` | `String` | Optional | GitHub login the budget applies to. Required when `budget_scope` is `user`. Changing it replaces the budget. |
 
 ## Import
 

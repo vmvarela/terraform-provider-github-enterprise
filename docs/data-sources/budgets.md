@@ -16,7 +16,7 @@ Lists billing budgets with the amount consumed so far, following every page. Rea
 data "github_enterprise_budgets" "user_budgets" {
   provider = github-enterprise
 
-  scope = "user"
+  budget_scope = "user"
 }
 
 data "github_enterprise_budgets" "all" {
@@ -28,12 +28,12 @@ data "github_enterprise_budgets" "all" {
 
 | Attribute | Type | Requirement | Description |
 | --- | --- | --- | --- |
+| `budget_scope` | `String` | Optional | Only return budgets with this scope. |
 | `budgets` | `list(object)` | Read-only | Budgets in API order. |
 | `enterprise_slug` | `String` | Optional | Enterprise account slug. Defaults to the provider-level enterprise_slug. |
 | `id` | `String` | Read-only | Deterministic query identity: enterprise_slug:budgets, plus the escaped filters when set. |
-| `scope` | `String` | Optional | Only return budgets with this scope. |
-| `user` | `String` | Optional | Filter the consumed-amount details by this login, which is what GitHub documents the parameter for. Use it together with scope `user`. |
+| `username` | `String` | Optional | Filter the consumed-amount details by this login, which is what GitHub documents the parameter for. Use it together with `budget_scope = "user"`. |
 
-Each budget object contains `budget_id`, `budget_scope`, `budget_entity_name`, `user`, `budget_amount`, `prevent_further_usage`, `budget_type`, `budget_product_sku`, `alerts_enabled`, `alert_recipients`, `expires_at`, and `consumed_amount`.
+Each budget object contains `budget_id`, `budget_scope`, `budget_entity_name`, `username`, `budget_amount`, `prevent_further_usage`, `budget_type`, `budget_product_sku`, `alerts_enabled`, `alert_recipients`, `expires_at`, and `consumed_amount`.
 
 See the [provider guide](https://github.com/vmvarela/terraform-provider-github-enterprise#authentication) for authentication, ownership and compatibility requirements.

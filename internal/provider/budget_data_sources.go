@@ -18,7 +18,7 @@ var budgetTypes_ = map[string]attr.Type{
 	"budget_id":             types.StringType,
 	"budget_scope":          types.StringType,
 	"budget_entity_name":    types.StringType,
-	"user":                  types.StringType,
+	"username":              types.StringType,
 	"budget_amount":         types.Int64Type,
 	"prevent_further_usage": types.BoolType,
 	"budget_type":           types.StringType,
@@ -33,7 +33,7 @@ func budgetDataAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"budget_scope":          schema.StringAttribute{Computed: true, MarkdownDescription: "Scope the budget applies to."},
 		"budget_entity_name":    schema.StringAttribute{Computed: true, MarkdownDescription: "Entity the budget applies to, as GitHub reports it. GitHub answers with the entity's display name, so this may differ from the login configured on the resource."},
-		"user":                  schema.StringAttribute{Computed: true, MarkdownDescription: "Login the budget applies to, or null for other scopes."},
+		"username":              schema.StringAttribute{Computed: true, MarkdownDescription: "Login the budget applies to, or null for other scopes."},
 		"budget_amount":         schema.Int64Attribute{Computed: true, MarkdownDescription: "Budget amount in whole dollars, or a number of licenses for license-based products."},
 		"prevent_further_usage": schema.BoolAttribute{Computed: true, MarkdownDescription: "Whether GitHub blocks additional spending once the budget is exceeded."},
 		"budget_type":           schema.StringAttribute{Computed: true, MarkdownDescription: "Pricing model: `ProductPricing`, `SkuPricing` or `BundlePricing`."},
@@ -57,7 +57,7 @@ func budgetObject(b *client.Budget) (types.Object, diag.Diagnostics) {
 		"budget_id":             types.StringValue(b.ID),
 		"budget_scope":          types.StringValue(b.Scope),
 		"budget_entity_name":    nullIfEmpty(b.EntityName),
-		"user":                  nullIfEmpty(b.User),
+		"username":              nullIfEmpty(b.User),
 		"budget_amount":         types.Int64Value(b.Amount),
 		"prevent_further_usage": types.BoolValue(b.PreventFurtherUsage),
 		"budget_type":           types.StringValue(b.Type),
@@ -78,7 +78,7 @@ type budgetDataModel struct {
 	BudgetID            types.String  `tfsdk:"budget_id"`
 	Scope               types.String  `tfsdk:"budget_scope"`
 	EntityName          types.String  `tfsdk:"budget_entity_name"`
-	User                types.String  `tfsdk:"user"`
+	Username            types.String  `tfsdk:"username"`
 	Amount              types.Int64   `tfsdk:"budget_amount"`
 	PreventFurtherUsage types.Bool    `tfsdk:"prevent_further_usage"`
 	Type                types.String  `tfsdk:"budget_type"`
@@ -123,7 +123,7 @@ func (d *budgetDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	}
 	a := obj.Attributes()
 	data.ID = types.StringValue(joinID(enterprise.ValueString(), b.ID))
-	data.Scope, data.EntityName, data.User = a["budget_scope"].(types.String), a["budget_entity_name"].(types.String), a["user"].(types.String)
+	data.Scope, data.EntityName, data.Username = a["budget_scope"].(types.String), a["budget_entity_name"].(types.String), a["username"].(types.String)
 	data.Amount, data.PreventFurtherUsage = a["budget_amount"].(types.Int64), a["prevent_further_usage"].(types.Bool)
 	data.Type, data.SKU, data.ExpiresAt = a["budget_type"].(types.String), a["budget_product_sku"].(types.String), a["expires_at"].(types.String)
 	data.AlertsEnabled, data.AlertRecipients = a["alerts_enabled"].(types.Bool), a["alert_recipients"].(types.List)
@@ -135,8 +135,8 @@ type budgetsDataSource struct{ configuredDataSource }
 type budgetsDataModel struct {
 	ID         types.String `tfsdk:"id"`
 	Enterprise types.String `tfsdk:"enterprise_slug"`
-	Scope      types.String `tfsdk:"scope"`
-	User       types.String `tfsdk:"user"`
+	Scope      types.String `tfsdk:"budget_scope"`
+	Username   types.String `tfsdk:"username"`
 	Budgets    types.List   `tfsdk:"budgets"`
 }
 
@@ -149,8 +149,8 @@ func (d *budgetsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 	resp.Schema = schema.Schema{MarkdownDescription: "Lists billing budgets with the amount consumed so far, following every page. Read-only.", Attributes: map[string]schema.Attribute{
 		"id":              schema.StringAttribute{Computed: true, MarkdownDescription: "Deterministic query identity: enterprise_slug:budgets, plus the escaped filters when set."},
 		"enterprise_slug": enterpriseDataAttribute(),
-		"scope":           schema.StringAttribute{Optional: true, MarkdownDescription: "Only return budgets with this scope.", Validators: []validator.String{oneOf(budgetScopes...)}},
-		"user":            schema.StringAttribute{Optional: true, MarkdownDescription: "Filter the consumed-amount details by this login, which is what GitHub documents the parameter for. Use it together with scope `user`.", Validators: []validator.String{usernameRule()}},
+		"budget_scope":    schema.StringAttribute{Optional: true, MarkdownDescription: "Only return budgets with this scope.", Validators: []validator.String{oneOf(budgetScopes...)}},
+		"username":        schema.StringAttribute{Optional: true, MarkdownDescription: "Filter the consumed-amount details by this login, which is what GitHub documents the parameter for. Use it together with `budget_scope = \"user\"`.", Validators: []validator.String{usernameRule()}},
 		"budgets":         schema.ListNestedAttribute{Computed: true, MarkdownDescription: "Budgets in API order.", NestedObject: schema.NestedAttributeObject{Attributes: nested}},
 	}}
 }
@@ -166,14 +166,14 @@ func (d *budgetsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 	data.Enterprise = enterprise
-	scope, user := "", ""
+	scope, username := "", ""
 	if !data.Scope.IsNull() {
 		scope = data.Scope.ValueString()
 	}
-	if !data.User.IsNull() {
-		user = data.User.ValueString()
+	if !data.Username.IsNull() {
+		username = data.Username.ValueString()
 	}
-	budgets, err := d.client.Budgets(ctx, enterprise.ValueString(), scope, user)
+	budgets, err := d.client.Budgets(ctx, enterprise.ValueString(), scope, username)
 	if err != nil {
 		resp.Diagnostics.AddError("List budgets", err.Error())
 		return
@@ -193,8 +193,8 @@ func (d *budgetsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		id += sep + "scope=" + url.QueryEscape(scope)
 		sep = "&"
 	}
-	if user != "" {
-		id += sep + "user=" + url.QueryEscape(user)
+	if username != "" {
+		id += sep + "username=" + url.QueryEscape(username)
 	}
 	data.ID = types.StringValue(id)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

@@ -53,7 +53,7 @@ func TestBudgetDataSourceReadsConsumption(t *testing.T) {
 	d := &budgetDataSource{configuredDataSource{client: c}}
 	state, resp := readBudgetDataSource(t, d, budgetDataModel{
 		Enterprise: types.StringValue("acme"), BudgetID: types.StringValue("b1"),
-		ID: types.StringNull(), Scope: types.StringNull(), EntityName: types.StringNull(), User: types.StringNull(),
+		ID: types.StringNull(), Scope: types.StringNull(), EntityName: types.StringNull(), Username: types.StringNull(),
 		Amount: types.Int64Null(), PreventFurtherUsage: types.BoolNull(), Type: types.StringNull(), SKU: types.StringNull(),
 		AlertsEnabled: types.BoolNull(), AlertRecipients: types.ListNull(types.StringType), ExpiresAt: types.StringNull(),
 		ConsumedAmount: types.Float64Null(),
@@ -66,7 +66,7 @@ func TestBudgetDataSourceReadsConsumption(t *testing.T) {
 	if path != "/enterprises/acme/settings/billing/budgets/b1" {
 		t.Errorf("path = %s", path)
 	}
-	if got.ID.ValueString() != "acme:b1" || got.ConsumedAmount.ValueFloat64() != 12.5 || got.Amount.ValueInt64() != 30 || got.User.ValueString() != "octocat" {
+	if got.ID.ValueString() != "acme:b1" || got.ConsumedAmount.ValueFloat64() != 12.5 || got.Amount.ValueInt64() != 30 || got.Username.ValueString() != "octocat" {
 		t.Errorf("decoded wrong: %+v", got)
 	}
 	if got.AlertRecipients.IsNull() || got.AlertRecipients.String() != `["octocat"]` {
@@ -83,7 +83,7 @@ func TestBudgetDataSourceMissingConsumedAmountIsNull(t *testing.T) {
 	state, resp := readBudgetDataSource(t, d, budgetDataModel{
 		Enterprise: types.StringValue("acme"), BudgetID: types.StringValue("b1"),
 		ID: types.StringNull(), Scope: types.StringNull(), EntityName: types.StringNull(),
-		User: types.StringNull(), Amount: types.Int64Null(), PreventFurtherUsage: types.BoolNull(),
+		Username: types.StringNull(), Amount: types.Int64Null(), PreventFurtherUsage: types.BoolNull(),
 		Type: types.StringNull(), SKU: types.StringNull(), AlertsEnabled: types.BoolNull(),
 		AlertRecipients: types.ListNull(types.StringType), ExpiresAt: types.StringNull(), ConsumedAmount: types.Float64Null(),
 	})
@@ -106,7 +106,7 @@ func TestBudgetsDataSourceSendsFiltersAndLists(t *testing.T) {
 	})
 	d := &budgetsDataSource{configuredDataSource{client: c}}
 	state, resp := readBudgetDataSource(t, d, budgetsDataModel{
-		Enterprise: types.StringValue("acme"), Scope: types.StringValue("user"), User: types.StringValue("octocat"),
+		Enterprise: types.StringValue("acme"), Scope: types.StringValue("user"), Username: types.StringValue("octocat"),
 		ID: types.StringNull(), Budgets: types.ListNull(types.ObjectType{AttrTypes: budgetTypes_}),
 	})
 	if resp.Diagnostics.HasError() {
@@ -119,7 +119,7 @@ func TestBudgetsDataSourceSendsFiltersAndLists(t *testing.T) {
 			t.Errorf("query %q missing %q", query, want)
 		}
 	}
-	if got.ID.ValueString() != "acme:budgets?scope=user&user=octocat" || !strings.Contains(got.Budgets.String(), "12.5") {
+	if got.ID.ValueString() != "acme:budgets?scope=user&username=octocat" || !strings.Contains(got.Budgets.String(), "12.5") {
 		t.Errorf("id=%s budgets=%s", got.ID, got.Budgets)
 	}
 	if !strings.Contains(got.Budgets.String(), "b2") {
@@ -135,7 +135,7 @@ func TestBudgetsDataSourceEmptyListIsNotNull(t *testing.T) {
 	})
 	d := &budgetsDataSource{configuredDataSource{client: c}}
 	state, resp := readBudgetDataSource(t, d, budgetsDataModel{
-		Enterprise: types.StringValue("acme"), Scope: types.StringNull(), User: types.StringNull(),
+		Enterprise: types.StringValue("acme"), Scope: types.StringNull(), Username: types.StringNull(),
 		ID: types.StringNull(), Budgets: types.ListNull(types.ObjectType{AttrTypes: budgetTypes_}),
 	})
 	if resp.Diagnostics.HasError() {

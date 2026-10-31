@@ -37,6 +37,6 @@ data "github_enterprise_budget" "actions" {
 | `expires_at` | `String` | Read-only | Expiry date in YYYY-MM-DD format, or null. |
 | `id` | `String` | Read-only | enterprise_slug:budget_id. |
 | `prevent_further_usage` | `Bool` | Read-only | Whether GitHub blocks additional spending once the budget is exceeded. |
-| `user` | `String` | Read-only | Login the budget applies to, or null for other scopes. |
+| `username` | `String` | Read-only | Login the budget applies to, or null for other scopes. |
 
 See the [provider guide](https://github.com/vmvarela/terraform-provider-github-enterprise#authentication) for authentication, ownership and compatibility requirements.
