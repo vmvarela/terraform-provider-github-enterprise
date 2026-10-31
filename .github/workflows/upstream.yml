@@ -25,6 +25,16 @@ jobs:
           terraform_wrapper: false
       - name: Fail if a type we declare is also declared by the official provider
         run: make upstream-check
+  upstream-prs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fail when open official pull requests collide or changed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: make upstream-prs-check
   go-github:
     runs-on: ubuntu-latest
     steps:

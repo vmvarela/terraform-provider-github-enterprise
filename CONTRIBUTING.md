@@ -182,6 +182,12 @@ workflow runs both weekly and on demand:
 - `make upstream-check` compares the types this provider declares with the
   official provider's published schema and fails on any collision. Release
   notes must not ship a release that fails it.
+- `make upstream-prs-check` compares the types proposed by the official
+  provider's open pull requests with the ones declared here and with a recorded
+  baseline (`scripts/upstream-prs.txt`). It fails when a pull request proposes a
+  type we ship, because that name can still change, and when a type appeared,
+  moved to another pull request or disappeared since the baseline. After
+  reviewing the report, `make upstream-prs-baseline` accepts the current state.
 - `make go-github-check` reports a newer go-github, builds and tests the
   provider against the newest patch of the pinned major, lists the enterprise
   SDK methods added since the pinned version, and prints the enterprise methods

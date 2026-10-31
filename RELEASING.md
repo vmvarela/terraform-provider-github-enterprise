@@ -72,6 +72,8 @@ commit signing and from SSH keys.
       leaves no diff.
 - [ ] `make go-github-check` shows no newer patch of the pinned go-github major
       (a newer patch is a reason to release a dependency bump first).
+- [ ] `make upstream-prs-check` passes, or its report has been reviewed and the
+      baseline updated with `make upstream-prs-baseline`.
 - [ ] `make upstream-check` reports no collision: no type this release declares
       is also declared by the official `github` provider. A collision means the
       type must be removed here instead of released (see

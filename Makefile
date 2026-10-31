@@ -1,4 +1,4 @@
-.PHONY: build test integration check fmt docs package-check upstream-check go-github-check
+.PHONY: build test integration check fmt docs package-check upstream-check upstream-prs-check upstream-prs-baseline go-github-check
 
 build:
 	go build -trimpath -o bin/terraform-provider-github-enterprise .
@@ -29,6 +29,15 @@ package-check:
 # github provider, which would make the two unusable side by side.
 upstream-check:
 	./scripts/upstream-check.sh $(UPSTREAM_VERSION)
+
+# Fails when the open pull requests of the official provider propose a type we
+# declare, or when they changed since the recorded baseline.
+upstream-prs-check:
+	./scripts/upstream-prs-check.sh
+
+# Accepts what the official pull requests propose right now as the new baseline.
+upstream-prs-baseline:
+	./scripts/upstream-prs-check.sh --update
 
 # Reports a newer go-github, whether the provider still builds against it, and
 # which enterprise API methods appeared since the pinned version.

@@ -48,9 +48,7 @@ echo "upstream-check: official integrations/github ${official:-unknown}"
 
 # Our types are read from the source, so the check also covers a working tree
 # that has not been released yet.
-grep -rhoE 'resourceTypePrefix \+ "_[a-z_]+"' "$repo_root/internal/provider" |
-	sed -E 's/resourceTypePrefix \+ "_(.*)"/github_enterprise_\1/' |
-	sort -u >"$work/ours.txt"
+"$repo_root/scripts/our-types.sh" >"$work/ours.txt"
 
 python3 - "$work/schema.json" "$work/ours.txt" <<'PY'
 import json, sys
