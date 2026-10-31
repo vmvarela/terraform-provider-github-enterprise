@@ -14,12 +14,9 @@ Version **0.6.0** adds `github_enterprise_budget`: a spending cap for an enterpr
 
 Version **0.6.1** adds the read-only `github_enterprise_budget` and
 `github_enterprise_budgets` data sources, so budgets can be looked up and their
-consumption read without being managed by Terraform. It also renames the budget
-login from `user` to `username`, the name this provider and the official one use
-elsewhere, and renames the plural data source filter from `scope` to
-`budget_scope`. Both renames are breaking for anyone who wrote the 0.6.0 spelling;
-0.6.0 was published the same day, so this is a patch release rather than a new
-minor.
+consumption read without being managed by Terraform. The budget login is
+`username` and the list filter is `budget_scope`, the names used for the same
+concepts elsewhere in this provider and in the official one.
 
 Start with the [quickstart](docs/guides/quickstart.md) if you want one page from token to a working team.
 
