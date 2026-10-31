@@ -8,6 +8,9 @@ on:
     branches: [master]
     paths:
       - 'scripts/upstream-check.sh'
+      - 'scripts/upstream-prs-check.sh'
+      - 'scripts/upstream-prs.txt'
+      - 'scripts/our-types.sh'
       - 'scripts/go-github-check.sh'
       - '.github/workflows/upstream.yml'
 permissions:
