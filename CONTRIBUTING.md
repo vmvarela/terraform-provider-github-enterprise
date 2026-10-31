@@ -163,6 +163,10 @@ pull request or a matching name. Stop adding overlapping features once
 `integrations/github` provides an equivalent, and remove ours instead of
 maintaining two implementations.
 
+Use the upstream names. When an open pull request in `integrations/github`
+already names the resource or data source, adopt that exact name here, so that
+removing ours later is a provider swap and not a configuration rewrite.
+
 Removal, not deprecation-in-place, is the rule: both providers declare `github_*`
 type names, so the same type in both makes the pair unusable — Terraform cannot
 tell which provider owns `github_enterprise_ruleset`. The first minor release after
