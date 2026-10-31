@@ -6,6 +6,11 @@ it.
 
 ## Before opening a pull request
 
+`master` is protected: every change lands through a pull request, and the
+`test`, `opentofu`, `package` and `gosec` checks must pass before it can merge.
+Enable auto-merge and the pull request merges itself when the checks are green;
+direct pushes are rejected.
+
 Run `make check` and `make integration`. HTTP-backed Terraform integration tests
 must not require real credentials. Add meaningful regression coverage for changes
 to identity, import, pagination, drift, and destructive operations. Use a dedicated
