@@ -611,12 +611,12 @@ func TestCostCenterPlanChangeAndIDs(t *testing.T) {
 		t.Fatalf("no-op delta: %v %v %v", add, remove, err)
 	}
 	for _, bad := range []string{"", ".", "..", "a/b", "a b", "a\nb", strings.Repeat("x", 257)} {
-		if validCostCenterID(bad) {
+		if validOpaqueID(bad) {
 			t.Errorf("%q accepted", bad)
 		}
 	}
 	for _, good := range []string{"42", "3f2c-uuid-like", "Opaque_ID"} {
-		if !validCostCenterID(good) {
+		if !validOpaqueID(good) {
 			t.Errorf("%q rejected", good)
 		}
 	}

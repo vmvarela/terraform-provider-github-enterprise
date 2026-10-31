@@ -41,6 +41,17 @@ func TestBudgetListRejectsBadItems(t *testing.T) {
 	}
 }
 
+// A repeated ID means the server re-served a page; the list must not duplicate
+// entries in state.
+func TestBudgetListRejectsDuplicateIDs(t *testing.T) {
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"budgets":[{"id":"b1","budget_amount":10}],"has_next_page":true}`)
+	})
+	if _, err := c.Budgets(context.Background(), "e", "", ""); err == nil || !strings.Contains(err.Error(), "twice") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestBudgetCreateSendsUserAndExpiry(t *testing.T) {
 	var body map[string]any
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
