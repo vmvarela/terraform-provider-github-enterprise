@@ -67,11 +67,12 @@ fi
 scripts/our-types.sh >"$work/ours.txt"
 collisions="$(awk -F'\t' 'NR==FNR{ours[$1];next} ($1 in ours){print $1" (#"$2")"}' \
 	"$work/ours.txt" "$work/current.txt" | sort -u)"
+# A standing risk, not a regression: these are already in the baseline, so a new
+# one arrives as a baseline diff and fails the run there.
 if [[ -n "$collisions" ]]; then
 	echo "upstream-prs-check: open pull requests propose types this provider already declares:"
 	echo "$collisions" | sed 's/^/  /'
-	echo "upstream-prs-check: those types are at risk of a future name change; follow the pull request."
-	status=1
+	echo "upstream-prs-check: those types are at risk of a name change before merge; follow the pull request."
 fi
 
 exit "$status"
