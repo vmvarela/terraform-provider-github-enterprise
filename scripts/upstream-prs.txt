@@ -1,5 +1,3 @@
-github_enterprise_actions_hosted_runner	3017
-github_enterprise_actions_hosted_runners	3017
 github_enterprise_actions_permissions	2404
 github_enterprise_actions_permissions	3705
 github_enterprise_actions_runner_group	3480
@@ -23,6 +21,7 @@ github_enterprise_organization	3672
 github_enterprise_organization	3697
 github_enterprise_organization	3700
 github_enterprise_organization	3705
+github_enterprise_organization	3720
 github_enterprise_organization_app_accessible_repositories	3535
 github_enterprise_organization_app_installation	3535
 github_enterprise_organization_app_installations	3535
@@ -31,7 +30,3 @@ github_enterprise_ruleset	3110
 github_enterprise_security_analysis_settings	3672
 github_enterprise_security_analysis_settings	3705
 github_enterprise_security_configuration	3284
-github_enterprise_team	3008
-github_enterprise_team_membership	3008
-github_enterprise_team_organizations	3008
-github_enterprise_teams	3008
