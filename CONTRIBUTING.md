@@ -119,6 +119,13 @@ Suites and required fixtures:
   command. Creates an organization-scoped budget with a harmless amount and
   `prevent_further_usage = false`, updates the amount, imports it and deletes it.
   Nothing pre-existing is adopted or edited.
+- `TestAccSecretScanningCustomPattern`: additionally requires
+  `GITHUB_ENTERPRISE_TEST_SECRET_SCANNING_CONFIRM` set to exactly
+  `GITHUB_ENTERPRISE_SLUG` in the same command. Creates a uniquely named pattern
+  with an innocuous regex, reads it back, changes the regex, imports it and
+  destroys it, verifying by API that the exact pattern ID is gone. Requires an
+  enterprise owner token with `admin:enterprise`. Nothing pre-existing is
+  adopted, edited or deleted.
 - `TestAccCostCenterResources`: additionally requires at least one disposable,
   initially unassigned billing fixture. Set any of
   `GITHUB_ENTERPRISE_TEST_CC_USER`, `GITHUB_ENTERPRISE_TEST_CC_ORG`,
