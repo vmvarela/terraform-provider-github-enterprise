@@ -64,6 +64,7 @@ def main():
                 "github_enterprise_team", "github_enterprise_team_membership",
                 "github_enterprise_team_organizations", "github_enterprise_cost_center",
                 "github_enterprise_cost_center_resources", "github_enterprise_budget",
+                "github_enterprise_secret_scanning_custom_pattern",
             }
             expected_data = {
                 "github_enterprise_team", "github_enterprise_team_membership",

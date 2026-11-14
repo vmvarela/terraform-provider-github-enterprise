@@ -1,0 +1,1 @@
+terraform import github_enterprise_secret_scanning_custom_pattern.example my-enterprise:PATTERN_ID
