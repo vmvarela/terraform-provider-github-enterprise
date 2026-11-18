@@ -11,8 +11,8 @@ returns incomplete data, and which compatibility commitments apply to the v0.2
 release line and v0.3 additions. Release mechanics are covered by the
 [release verification guide](https://github.com/vmvarela/terraform-provider-github-enterprise/blob/master/docs/guides/releases.md).
 
-The provider complements `integrations/github` with enterprise teams, cost centers and
-billing budgets missing from the official provider. Its source is `vmvarela/github-enterprise`, its
+The provider complements `integrations/github` with enterprise teams, cost centers,
+billing budgets and secret scanning custom patterns missing from the official provider. Its source is `vmvarela/github-enterprise`, its
 local name is `github-enterprise`, and resource and data source types start with
 `github_enterprise_`. The prefix is shared with some official resources: every
 resource and data source must explicitly select `provider = github-enterprise`, or
@@ -28,6 +28,7 @@ Terraform infers the official provider from the type name.
 | `github_enterprise_cost_center` (from v0.2.0) | One cost center; destroy archives it | `enterprise_slug:cost_center_id` |
 | `github_enterprise_cost_center_resources` (from v0.2.0) | The complete cost-center assignment set across all supported categories | `enterprise_slug:cost_center_id` |
 | `github_enterprise_budget` (from v0.6.0) | One spending budget; destroy removes the cap, and spend already incurred stays billed | `enterprise_slug:budget_id` |
+| `github_enterprise_secret_scanning_custom_pattern` | One enterprise secret scanning custom pattern; destroy deletes it and resolves its alerts by default | `enterprise_slug:pattern_id` |
 
 Read-only data sources are `github_enterprise_team`, `github_enterprise_teams`,
 `github_enterprise_team_membership`, `github_enterprise_team_organizations`,
@@ -35,6 +36,14 @@ Read-only data sources are `github_enterprise_team`, `github_enterprise_teams`,
 `github_enterprise_budget`, and `github_enterprise_budgets`.
 A missing single team or membership is an error; list lookups may return empty
 collections. An existing membership reports `is_member = true`.
+
+Secret scanning custom patterns are created `unpublished`: the API cannot
+publish them, so publish the pattern from the enterprise secret scanning
+settings in the GitHub UI, where push protection for it is also configured.
+`name` is immutable upstream, so changing it replaces the resource. Destroying
+it deletes the pattern and resolves its alerts unless
+`post_delete_action = "delete_alerts"` is set, which deletes them
+irreversibly. The endpoints require a token with `admin:enterprise`.
 
 ## Identity and drift
 
